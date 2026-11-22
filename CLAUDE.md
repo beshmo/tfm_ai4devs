@@ -4,7 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-This repository is at its initial stage: there is no application code, build system, or test suite yet (only `LICENSE` (GPL-3.0), `docs/`, and `openspec/`). Once a tech stack is chosen, add its build/lint/test commands here and fill in the `context:` field of `openspec/config.yaml`.
+This repository is at its initial stage: there is no application code yet (only `LICENSE` (GPL-3.0), `docs/`, and `openspec/`). Tooling (package manager, linting, formatting, git hooks) is already set up — see below. Once a tech stack is chosen, add its build/test commands here and fill in the `context:` field of `openspec/config.yaml`.
+
+## Tooling
+
+- **Package manager**: `pnpm` (lockfile: `pnpm-lock.yaml`). Install with `pnpm install`.
+- **Commands**:
+  - `pnpm test` — runs the test suite (not configured yet; currently a no-op placeholder).
+  - `pnpm eslint .` — lint with ESLint (`eslint.config.mts`).
+  - `pnpm prettier --write .` — format with Prettier (`.prettierrc.json`, `.prettierignore`).
+- **Git hooks** (Husky, `.husky/`, installed via the `prepare` script on `pnpm install`):
+  - `pre-commit` — runs `pnpm test` then `pnpm lint-staged` (runs `eslint --fix` on staged `*.ts` files and `prettier --write` on staged `*.md` files, per `.lintstagedrc.json`).
+  - `commit-msg` — rejects any commit whose message contains a `Co-Authored-By` trailer.
 
 ## Development workflow: OpenSpec (spec-driven)
 

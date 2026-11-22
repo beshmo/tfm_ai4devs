@@ -1,0 +1,23 @@
+{
+  "name": "tfm_ai4devs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"test not yet configured, ignoring\" && exit 0",
+    "prepare": "husky"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0",
+    "husky": "^9.1.7",
+    "jiti": "^2.7.0",
+    "lint-staged": "^17.6.1",
+    "prettier": "3.10.1",
+    "typescript-eslint": "^8.73.0"
+  }
+}
