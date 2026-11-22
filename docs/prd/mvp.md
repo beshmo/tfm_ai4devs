@@ -1,6 +1,6 @@
 # PRD — Diario de trabajo MVP
 
-> **Estado:** En revisión · **Fecha:** 2026-11-22
+> **Estado:** Cerrado · **Fecha:** 2026-11-22
 > **Base de alcance:** [alcance-mvp.md](./alcance-mvp.md). Ese documento manda: si este PRD y el alcance se contradicen, gana el alcance.
 > **Nota de documento:** aquí no hay diseño técnico. Ni modelo de datos, ni arquitectura, ni endpoints. Solo qué debe hacer el producto y cómo se comprueba.
 
