@@ -35,7 +35,7 @@ Estructura de la página principal, pestañas y flujos típicos de uso. La inter
 ### Sugerencias de competencias
 
 - Al escribir: las sugerencias se filtran por el texto que se está escribiendo, entre **todas** las competencias conocidas. Con el campo vacío no se muestra ningún botón de competencias.
-- Pulsar una sugerencia sustituye el fragmento escrito y permite seguir con la siguiente; pulsar una ya seleccionada la quita.
+- Pulsar una sugerencia sustituye el fragmento escrito y permite seguir con la siguiente.
 - **Intro** elige la primera sugerencia (y nunca envía el formulario desde este campo).
 - Los nombres se normalizan: al escribir "kubernetes" se reutiliza la grafía existente "Kubernetes"; los duplicados se eliminan.
 
@@ -71,7 +71,7 @@ Búsqueda de texto libre (ID, título, resultado, evidencias, competencias y not
 
 ### Reglas propias de esta pestaña
 
-- Cambiar el estado aquí fija la fecha de finalización (la existente; si no, la de la última actividad; si no, hoy) o la borra; **no** añade un elemento a la línea de tiempo.
+- Cambiar el estado aquí fija la fecha de finalización (la de la última actividad; si no, hoy) o la borra; **no** añade un elemento a la línea de tiempo.
 - Se rechaza un título vacío.
 
 ## Pestaña "Objetivos"
