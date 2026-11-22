@@ -16,6 +16,7 @@ This repository is at its initial stage: there is no application code yet (only 
 - **Git hooks** (Husky, `.husky/`, installed via the `prepare` script on `pnpm install`):
   - `pre-commit` — runs `pnpm test` then `pnpm lint-staged` (runs `eslint --fix` on staged `*.ts` files and `prettier --write` on staged `*.md` files, per `.lintstagedrc.json`).
   - `commit-msg` — rejects any commit whose message contains a `Co-Authored-By` trailer.
+- **Claude Code hook** (`.claude/settings.json`, `PreToolUse`/`Bash`, script in `.claude/hooks/block-main-commit.js`): blocks any `git commit` run while on the `main` branch. Create and switch to a branch first — see **Branches** below.
 
 ## Development workflow: OpenSpec (spec-driven)
 
@@ -44,4 +45,4 @@ New features should go through a change proposal rather than being implemented a
   - Spanish: README, guides, ADRs, PRDs, backlog (and other human-facing docs).
   - English: source code, API specs and endpoints, data schemas and database names, config files and scripts, git commit messages, test names and descriptions.
 - **Commits**: [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) (e.g. `feat: ...`, `fix: ...`, `docs: ...`).
-- **Branches**: [Conventional Branch](https://conventionalbranch.org/v1.1.0/) (e.g. `feature/...`, `bugfix/...`, `chore/...`).
+- **Branches**: [Conventional Branch](https://conventionalbranch.org/v1.1.0/) (e.g. `feature/...`, `bugfix/...`, `chore/...`). Never commit directly to `main` — a Claude Code hook blocks it (see **Tooling** above). Before committing, create a branch off `main` with one of these prefixes, e.g. `git checkout -b feature/<name>`, and commit there; open a PR back into `main` when the work is ready.
