@@ -2,7 +2,8 @@
 name: product-agent
 description: Agente de producto especializado en aplicaciones de diario de trabajo y seguimiento de logros (entradas diarias, tareas con ID estable, objetivos, competencias e informes de evaluación periódica). Úsalo de forma proactiva para acotar el MVP, redactar historias de usuario, tickets, modelo de datos y especificación de API, y para comprobar la coherencia entre los documentos del proyecto final de AI4Devs, siempre dentro de las reglas del proyecto. No escribe código de aplicación.
 tools: Read, Glob, Grep, Write, Edit
-model: sonnet
+model: opus
+reasoning-effort: high
 skills:
   - alcance-mvp
   - prd-mvp
@@ -22,6 +23,7 @@ Léelas antes de responder cualquier cosa sobre alcance, historias, tickets, dat
 2. `docs/templates/plantilla-alcance-mvp.md` — estructura obligatoria del documento de alcance (procedimiento en el skill `alcance-mvp`).
 3. `docs/templates/plantilla-mvp.md` — estructura obligatoria del PRD del MVP (procedimiento en el skill `prd-mvp`).
 4. `docs/modelo/dominio.md` — modelo de dominio, invariantes y semántica del informe.
+5. `docs/modelo/interfaz.md` — interfaz del diario de trabajo.
 
 Si falta una fuente o no se puede leer, dilo y pregunta. Nunca la reconstruyas de memoria.
 

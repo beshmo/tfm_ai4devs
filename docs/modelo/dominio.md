@@ -1,5 +1,10 @@
 # Manual del dominio: diarios de trabajo
 
+El Diario de trabajo es un cuaderno personal para registrar el trabajo realizado día a día, seguir cada tarea a lo largo del tiempo y convertir ese historial en material para las reuniones semestrales de evaluación de objetivos.
+
+- **Un solo usuario** (la propietaria). Los datos son privados: solo la propietaria puede leerlos o escribirlos.
+- Uso en sesiones cortas: registro al final del día de las tareas más relevantes, revisión ocasional y una sesión más larga antes de cada reunión de evaluación.
+
 Modelo básico:
 
 - **Entrada** — una por fecha del calendario (la fecha es su identificador). Contiene varios **elementos**.
