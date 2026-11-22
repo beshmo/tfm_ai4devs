@@ -190,8 +190,8 @@ Nivel producto: qué debe hacer el sistema y cómo se comprueba. Cada requisito 
 
 No hay nada construido. Todo está por verificar.
 
-**RF-1 — Inicio de sesión con cuenta semilla.** Debe poder iniciarse sesión con las credenciales de prueba de los datos semilla. No debe existir ninguna opción de registro de cuentas, recuperación de contraseña ni inicio de sesión con proveedores externos.
-_Aceptación:_ con las credenciales de prueba documentadas en el README, la usuaria accede a la pestaña Diario; con una contraseña incorrecta, el acceso se rechaza con un mensaje de error y no se muestra ningún dato. La pantalla de acceso no contiene enlaces ni formularios de registro o recuperación. El mensaje de error no indica si el usuario existe. `[SUPUESTO]`
+**RF-1 — Inicio de sesión con cuenta semilla, cierre de sesión y caducidad por inactividad.** Debe poder iniciarse sesión con las credenciales de prueba de los datos semilla. No debe existir ninguna opción de registro de cuentas, recuperación de contraseña ni inicio de sesión con proveedores externos. Debe existir una acción de "Cerrar sesión" visible y accesible desde cualquier pestaña, que termina la sesión y exige volver a iniciar sesión para ver cualquier dato. La sesión también debe caducar sola a los 30 minutos de inactividad; al volver tras caducar, debe exigirse iniciar sesión de nuevo.
+_Aceptación:_ con las credenciales de prueba documentadas en el README, la usuaria accede a la pestaña Diario; con una contraseña incorrecta, el acceso se rechaza con un mensaje de error y no se muestra ningún dato. La pantalla de acceso no contiene enlaces ni formularios de registro o recuperación. El mensaje de error no indica si el usuario existe. `[SUPUESTO]` Pulsar "Cerrar sesión" vuelve a la pantalla de acceso y una petición posterior sin iniciar sesión de nuevo recibe `401` (RF-2). Tras 30 minutos sin ninguna acción, la siguiente operación se rechaza como sin sesión y la interfaz pide iniciar sesión de nuevo; una acción dentro de esos 30 minutos reinicia el conteo de inactividad.
 
 **RF-2 — Acceso exigido en toda operación.** Toda lectura y escritura debe exigir sesión iniciada.
 _Aceptación:_ cualquier petición sin sesión recibe `401` y no devuelve datos; un test lo comprueba para cada operación de lectura y escritura del producto.
@@ -210,8 +210,8 @@ _Aceptación:_ con el almacenamiento detenido, la aplicación muestra un mensaje
 
 ### E2 · Registro diario
 
-**RF-7 — Editor de entradas en la pestaña Diario.** El editor debe tener un selector de fecha, con la fecha local de hoy por defecto, y una lista de elementos que empieza con uno. Debe permitir añadir elementos ("+ Añadir otra tarea") y quitarlos ("Quitar", solo si hay más de uno). Al editar una entrada existente, debe ofrecer "Cancelar".
-_Aceptación:_ al abrir Diario, la fecha mostrada es la fecha local del navegador; con un solo elemento no aparece "Quitar"; con dos, sí. Una entrada no puede guardarse sin elementos.
+**RF-7 — Editor de entradas en la pestaña Diario.** El editor debe tener un selector de fecha, con la fecha local de hoy por defecto, y una lista de elementos que empieza con uno. Debe permitir añadir elementos ("+ Añadir otra tarea") y quitarlos ("Quitar", solo si hay más de uno). Al editar una entrada existente, debe ofrecer "Cancelar". No debe poder guardarse una entrada con una fecha posterior a hoy (fecha local del navegador).
+_Aceptación:_ al abrir Diario, la fecha mostrada es la fecha local del navegador; con un solo elemento no aparece "Quitar"; con dos, sí. Una entrada no puede guardarse sin elementos. Con hoy = 2026-11-22, guardar una entrada con fecha 2026-11-23 se rechaza con un mensaje que empieza por "No se pudo guardar" y no guarda nada; guardar con fecha 2026-11-22 se acepta.
 
 **RF-8 — Contenido de cada elemento.** Cada elemento debe permitir elegir una tarea existente o "Nueva tarea…" (con título obligatorio), escribir una nota, fijar el estado de la tarea tras ese día (`En curso`, `En pausa`, `Completada`) y activar la marca de logro. En una sección plegable "Detalles de la tarea" (abierta por defecto en tareas nuevas, cerrada en existentes) debe permitir asignar el objetivo, incluido "+ Nuevo objetivo…" con solo título, y completar competencias, resultado o impacto y evidencias.
 _Aceptación:_ el estado por defecto es `En curso` en una tarea nueva y el estado actual en una existente. Guardar con una tarea nueva sin título se rechaza con un mensaje de error y no guarda nada de la entrada. Crear "+ Nuevo objetivo…" desde el elemento deja el objetivo disponible en la pestaña Objetivos sin descripción ni "Cómo se mide". Todo el recorrido se completa sin cambiar de pestaña. El estado, la marca de logro y los datos de "Detalles de la tarea" elegidos en el elemento se aplican a la tarea con la protección por fecha de entrada de RF-12.
@@ -315,7 +315,7 @@ _Aceptación:_ el texto copiado es idéntico al de la vista previa; con el permi
 _Aceptación:_ para el periodo 2026-01-01 a 2026-06-30, el fichero se llama `informe-diario-2026-01-01_2026-06-30.md` y su contenido es idéntico al de la vista previa.
 
 **RF-39 — Exportación determinista.** Con los mismos datos y el mismo periodo, el Markdown exportado debe ser idéntico byte a byte.
-_Aceptación:_ un test genera dos veces el informe del mismo periodo sobre los datos semilla, en momentos distintos, y compara los ficheros byte a byte. El Markdown no incluye la fecha ni la hora de generación, como el ejemplo de referencia `docs/propuesta/informe.md`. El orden de cada lista del informe, incluidos sus desempates, está fijado en RF-34, RF-35 y RF-36, de modo que ningún empate deja el orden sin determinar.
+_Aceptación:_ un test genera dos veces el informe del mismo periodo sobre los datos semilla, en momentos distintos, y compara los ficheros byte a byte. El Markdown no incluye la fecha ni la hora de generación, como el ejemplo de referencia `docs/modelo/informe.md` (versión consolidada y corregida de `docs/propuesta/informe.md`). El orden de cada lista del informe, incluidos sus desempates, está fijado en RF-34, RF-35 y RF-36, de modo que ningún empate deja el orden sin determinar.
 
 **RF-40 — Exportación en PDF (S1, opcional).** El informe puede generarse en el navegador como PDF A4 `informe-diario-<desde>_<hasta>.pdf`, con título, periodo, numeración de páginas y las mismas secciones que el Markdown.
 _Aceptación:_ el PDF contiene las cuatro secciones en el mismo orden que el Markdown y cada página lleva su número. No es condición para cerrar el MVP.
@@ -325,7 +325,7 @@ _Aceptación:_ el PDF contiene las cuatro secciones en el mismo orden que el Mar
 ## 7. Requisitos no funcionales
 
 **RNF-1 — Coste del registro diario.** El registro del día debe completarse desde un único formulario de la pestaña Diario, con la fecha de hoy por defecto, sin pasar por otras pestañas, incluso para crear una tarea nueva y un objetivo nuevo (solo con título). Los únicos datos obligatorios son la fecha y, por cada elemento, la tarea (existente o el título de una nueva). Es la condición del principio de diseño (sección 3).
-_Comprobación:_ un test E2E registra una entrada con una tarea nueva vinculada a un objetivo nuevo y verifica 0 cambios de pestaña. Que la nota no sea obligatoria es un `[SUPUESTO]` (PA-10).
+_Comprobación:_ un test E2E registra una entrada con una tarea nueva vinculada a un objetivo nuevo y verifica 0 cambios de pestaña. La nota no es obligatoria: un elemento sin nota es válido si tiene tarea.
 
 **RNF-2 — Respuesta percibida.** En instalación local con los datos semilla, guardar una entrada y ver el mensaje de confirmación debe tardar como máximo 1 s, y generar el informe de un periodo de 6 meses como máximo 2 s. `[SUPUESTO]` Importa porque la sesión de registro es corta y cualquier espera la alarga.
 
@@ -373,7 +373,7 @@ _Comprobación:_ P-4.
 
 **R-7 — Validación como caso de estudio.** Una sola persona, la propietaria, que además construye el producto. Condiciona las métricas (sección 9).
 
-**R-8 — Sin diseño visual definido.** No hay maquetas ni guía visual más allá de la estructura de `docs/propuesta/interfaz.md`. Los requisitos de diseño se limitan a una columna en pantallas estrechas, ausencia de desplazamiento horizontal y tema claro u oscuro del sistema.
+**R-8 — Sin diseño visual definido.** No hay maquetas ni guía visual más allá de la estructura de `docs/modelo/interfaz.md` (versión consolidada de `docs/propuesta/interfaz.md` con las decisiones ya cerradas). Los requisitos de diseño se limitan a una columna en pantallas estrechas, ausencia de desplazamiento horizontal y tema claro u oscuro del sistema.
 
 **R-9 — Lenguas del proyecto.** La documentación dirigida a personas (README, PRD, backlog) se redacta en español; el código, las especificaciones de API, los esquemas de datos y los mensajes de commit, en inglés.
 
@@ -442,16 +442,14 @@ Ninguno de estos puntos reabre el alcance: todos cuestionan bordes o consecuenci
 
 **PA-7 — Resuelto.** El intervalo de fechas y el número de entradas de cada tarea en el informe se calculan solo con las entradas del periodo; queda integrado en RF-34 y RF-36. Se conserva el identificador para no renumerar los demás puntos.
 
-**PA-8 — Descargas con confirmación y botones ocultos según el entorno.** `docs/propuesta/interfaz.md` dice que las descargas siempre piden confirmación y que los botones se ocultan si el entorno no permite guardar archivos. El alcance no recoge ninguna de las dos reglas. Parecen propias de un entorno de artefactos alojados, no de una aplicación web con su propio servidor. Mientras tanto, RF-38 no las incluye.
-_Para decidirlo hace falta:_ que la propietaria confirme si se descartan (y se corrige `interfaz.md`) o si se mantienen, en cuyo caso deben pasar primero al alcance.
+**PA-8 — Resuelto.** Se descartan las dos reglas: ninguna descarga pide confirmación propia (solo el mensaje de éxito o error de RF-5) y los botones de descarga no se ocultan según el entorno; son propias de un entorno de artefactos alojados, no de esta aplicación web con su propio servidor. RF-38 y RF-40 ya no las incluían. `docs/propuesta/interfaz.md` se conserva como propuesta inicial de referencia, sin corregir; la versión consolidada ya sin esas dos reglas es `docs/modelo/interfaz.md`. Se conserva el identificador para no renumerar los demás puntos.
 
-**PA-9 — Resuelto.** `interfaz.md` ya no tiene referencias rotas ni numeración huérfana; los elementos que el alcance excluye (recordar última pestaña, aviso de datos de ejemplo, botones de competencias más usadas) siguen descritos en `interfaz.md` como parte de la propuesta inicial, sin afectar al alcance ni al PRD. Se conserva el identificador para no renumerar los demás puntos.
+**PA-9 — Resuelto.** `docs/propuesta/interfaz.md` ya no tiene referencias rotas ni numeración huérfana, y se conserva tal cual como documento histórico: los elementos que el alcance excluye (recordar última pestaña, aviso de datos de ejemplo, botones de competencias más usadas) siguen descritos ahí como parte de la propuesta inicial. La versión consolidada `docs/modelo/interfaz.md` ya no los incluye. Se conserva el identificador para no renumerar los demás puntos.
 
-**PA-10 — Validaciones de entrada sin definir.** El alcance no dice si la nota de un elemento es obligatoria (RNF-1 asume que no), si se pueden registrar entradas con fecha futura, cómo se comporta un rango personalizado con una de las dos fechas vacía, ni si el ID de una tarea eliminada puede volver a asignarse (RF-15 solo garantiza que no cambia ni se duplica).
-_Para decidirlo hace falta:_ una decisión de la propietaria para cada caso, con el mensaje de error correspondiente.
+**PA-10 — Resuelto en parte.** La nota de un elemento no es obligatoria (RNF-1) y no pueden registrarse entradas con fecha posterior a hoy (RF-7). Quedan sin decidir los otros dos casos: cómo se comporta un rango personalizado con una de las dos fechas vacía, y si el ID de una tarea eliminada puede volver a asignarse (RF-15 solo garantiza que no cambia ni se duplica).
+_Para decidirlo hace falta:_ una decisión de la propietaria para cada uno de estos dos casos restantes, con el mensaje de error correspondiente.
 
-**PA-11 — Cierre y caducidad de la sesión.** El alcance exige inicio de sesión, pero no menciona el cierre de sesión ni cuánto dura una sesión. Sin cierre de sesión, en un equipo compartido los datos privados quedan expuestos.
-_Para decidirlo hace falta:_ confirmar si "Cerrar sesión" forma parte del requisito transversal de inicio de sesión (sin ser una funcionalidad nueva) y si hay caducidad por inactividad.
+**PA-11 — Resuelto.** "Cerrar sesión" forma parte del requisito transversal de inicio de sesión, sin ser una funcionalidad nueva, y la sesión caduca a los 30 minutos de inactividad; ambas reglas quedan integradas en RF-1. Se conserva el identificador para no renumerar los demás puntos.
 
 **PA-12 — Umbrales marcados como supuesto.** Los tiempos de RNF-2, el volumen de RNF-3, el ancho de RNF-8, los navegadores de RNF-9, el idioma de RNF-10, el teclado de RNF-11, el formato de fecha del nombre del fichero (RF-38) y los contadores sin filtro de periodo (RF-29) no vienen de ninguna fuente; son propuestas.
 _Para decidirlo hace falta:_ que la propietaria confirme o ajuste cada cifra; mientras tanto, se usan como objetivo de prueba sin presentarlos como validados.

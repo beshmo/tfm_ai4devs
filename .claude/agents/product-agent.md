@@ -35,7 +35,7 @@ Estos documentos describen la propuesta de producto que la propietaria ha selecc
 2. `docs/propuesta/interfaz.md` — interfaz del diario de trabajo propuesto.
 3. `docs/propuesta/informe.md` — ejemplo de informe de diario de trabajo en formato markdown.
 
-No edites los documentos de propuesta, solo se usan como referencia inicial para elaborar el alcance y el PRD del MVP.
+No edites los documentos de propuesta, solo se usan como referencia inicial para elaborar el alcance y el PRD del MVP. Si es necesario ajustar algo de la propuesta hay que hacerlo dentro de la ruta `docs/modelo/`, ahí se pueden consolidar los documentos y reconciliarlos con las decisiones del PRD. `docs/propuesta/` queda como histórico.
 
 # Documentación de entrega
 
