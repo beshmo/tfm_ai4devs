@@ -1,6 +1,6 @@
 # PRD — Diario de trabajo MVP
 
-> **Estado:** Borrador · **Fecha:** 2026-11-22
+> **Estado:** En revisión · **Fecha:** 2026-11-22
 > **Base de alcance:** [alcance-mvp.md](./alcance-mvp.md). Ese documento manda: si este PRD y el alcance se contradicen, gana el alcance.
 > **Nota de documento:** aquí no hay diseño técnico. Ni modelo de datos, ni arquitectura, ni endpoints. Solo qué debe hacer el producto y cómo se comprueba.
 
@@ -191,7 +191,7 @@ Nivel producto: qué debe hacer el sistema y cómo se comprueba. Cada requisito 
 No hay nada construido. Todo está por verificar.
 
 **RF-1 — Inicio de sesión con cuenta semilla, cierre de sesión y caducidad por inactividad.** Debe poder iniciarse sesión con las credenciales de prueba de los datos semilla. No debe existir ninguna opción de registro de cuentas, recuperación de contraseña ni inicio de sesión con proveedores externos. Debe existir una acción de "Cerrar sesión" visible y accesible desde cualquier pestaña, que termina la sesión y exige volver a iniciar sesión para ver cualquier dato. La sesión también debe caducar sola a los 30 minutos de inactividad; al volver tras caducar, debe exigirse iniciar sesión de nuevo.
-_Aceptación:_ con las credenciales de prueba documentadas en el README, la usuaria accede a la pestaña Diario; con una contraseña incorrecta, el acceso se rechaza con un mensaje de error y no se muestra ningún dato. La pantalla de acceso no contiene enlaces ni formularios de registro o recuperación. El mensaje de error no indica si el usuario existe. Pulsar "Cerrar sesión" vuelve a la pantalla de acceso y una petición posterior sin iniciar sesión de nuevo recibe `401` (RF-2). Tras 30 minutos sin ninguna acción, la siguiente operación se rechaza como sin sesión y la interfaz pide iniciar sesión de nuevo; una acción dentro de esos 30 minutos reinicia el conteo de inactividad.
+_Aceptación:_ con las credenciales de prueba documentadas en el README, la usuaria accede a la pestaña Diario; con una contraseña incorrecta, el acceso se rechaza con un mensaje de error y no se muestra ningún dato. La pantalla de acceso no contiene enlaces ni formularios de registro o recuperación. El mensaje de error no indica si el usuario existe. La acción "Cerrar sesión" está presente en las cuatro pestañas (Diario, Tareas, Objetivos e Informe). Pulsar "Cerrar sesión" vuelve a la pantalla de acceso y una petición posterior sin iniciar sesión de nuevo recibe `401` (RF-2). Tras 30 minutos sin ninguna acción, la siguiente operación se rechaza como sin sesión y la interfaz pide iniciar sesión de nuevo; una acción dentro de esos 30 minutos reinicia el conteo de inactividad.
 
 **RF-2 — Acceso exigido en toda operación.** Toda lectura y escritura debe exigir sesión iniciada.
 _Aceptación:_ cualquier petición sin sesión recibe `401` y no devuelve datos; un test lo comprueba para cada operación de lectura y escritura del producto.
@@ -206,7 +206,7 @@ _Aceptación:_ partiendo de N entradas, M tareas y L logros, guardar una entrada
 _Aceptación:_ guardar una entrada muestra "Entrada guardada"; un fallo al guardar muestra un mensaje que empieza por "No se pudo guardar". Pulsar Eliminar en cualquier elemento (entrada, tarea u objetivo) muestra una confirmación en la página; cancelarla no elimina nada. Un test E2E verifica que no se abre ningún diálogo nativo del navegador.
 
 **RF-6 — Carga y fallo de carga.** Mientras llegan los datos debe mostrarse un mensaje de carga; si no se pueden cargar o el almacenamiento no está disponible, un mensaje que lo diga.
-_Aceptación:_ con el almacenamiento detenido, la aplicación muestra un mensaje de error de carga en lugar de listas vacías o del estado vacío "escribe tu primera entrada".
+_Aceptación:_ con la respuesta de los datos retrasada, la aplicación muestra un mensaje de carga hasta que llegan, y no muestra listas vacías ni el estado vacío mientras tanto. Con el almacenamiento detenido, la aplicación muestra un mensaje de error de carga en lugar de listas vacías o del estado vacío "escribe tu primera entrada".
 
 ### E2 · Registro diario
 
@@ -262,7 +262,7 @@ _Aceptación:_ desplegar T-002 con T-001 desplegada pliega T-001. Una tarea con 
 **RF-22 — Edición en línea de la tarea.** Debe poder editarse en línea el título, el estado, el objetivo (con "+ Nuevo objetivo…"), la marca de logro, las competencias (con las sugerencias de RF-13), el resultado y las evidencias.
 _Aceptación:_ guardar con el título vacío o solo con espacios se rechaza con un mensaje de error y no cambia nada.
 
-**RF-23 — Cambio de estado desde Tareas.** Al cambiar el estado desde la pestaña Tareas, la fecha de finalización debe fijarse al pasar a `Completada` (la existente; si no hay, la de la última actividad; si no hay, hoy) o borrarse al salir de `Completada`. Este cambio no añade nada a la línea de tiempo. Cuando el estado cambia desde una entrada del Diario, la fecha de finalización no sigue esta regla sino la de RF-12 (la fecha de la entrada).
+**RF-23 — Cambio de estado desde Tareas.** Al cambiar el estado desde la pestaña Tareas, la fecha de finalización debe fijarse al pasar a `Completada` (la de la última actividad; si no hay, hoy) o borrarse al salir de `Completada`. Este cambio no añade nada a la línea de tiempo. Cuando el estado cambia desde una entrada del Diario, la fecha de finalización no sigue esta regla sino la de RF-12 (la fecha de la entrada).
 _Aceptación:_ T-007 `En curso` con última actividad el 2026-05-14 pasa a `Completada` con fecha de finalización 2026-05-14; T-008 sin entradas pasa a `Completada` con la fecha de hoy; al volver T-007 a `En curso`, su fecha de finalización desaparece. La línea de tiempo de T-007 tiene las mismas filas antes y después.
 
 **RF-24 — La fecha de finalización solo existe en `Completada`.** Ninguna tarea puede tener fecha de finalización si su estado no es `Completada`, venga el cambio de la pestaña Diario o de la pestaña Tareas.
@@ -395,7 +395,7 @@ No medible en este MVP. Exige haber registrado el trabajo real durante un period
 
 **P-2 — Fidelidad del informe.** Sujeto: un test automatizado. Escenario: informe de un periodo fijo sobre los datos semilla. Umbral: los cuatro totales del resumen coinciden exactamente con un recuento independiente de los datos semilla preparado a mano; el orden de las fortalezas coincide con el esperado; dos exportaciones del mismo periodo son idénticas byte a byte. Una sola diferencia es un fallo.
 
-**P-3 — Escenario fundacional: no perder el principio del periodo.** Sujeto: un test automatizado. Escenario: datos semilla ficticios que cubren el periodo enero–junio de un año con, al menos, un logro completado en enero con resultado, evidencias, objetivo y una competencia. Tarea: generar el informe "Enero – junio". Umbral: ese logro aparece en Logros destacados con su resultado y evidencias, en el grupo de su objetivo en Detalle por objetivo, y su competencia figura en Fortalezas con su ID. Falla si falta cualquiera de los cuatro.
+**P-3 — Escenario fundacional: no perder el principio del periodo.** Sujeto: un test automatizado. Escenario: datos semilla ficticios que cubren el periodo enero–junio de un año con, al menos, un logro completado en enero con resultado, evidencias, objetivo y una competencia. Tarea: con la fecha de hoy fijada en el test dentro de ese mismo año, generar el informe "Enero – junio". Umbral: se cumplen las cuatro condiciones: (1) ese logro aparece en Logros destacados; (2) su tarjeta muestra su resultado y sus evidencias; (3) aparece en el grupo de su objetivo en Detalle por objetivo; (4) su competencia figura en Fortalezas con su ID. Falla si no se cumple cualquiera de las cuatro.
 
 **P-4 — Reproducción por un revisor externo.** Sujeto: una persona que ve el producto por primera vez (por ejemplo, quien revise la entrega del curso). Escenario: solo con el README. Tarea: instalar en local, iniciar sesión con las credenciales de prueba, recorrer el flujo principal y ejecutar la suite de tests. Umbral: lo consigue sin pedir ayuda. Falla si necesita preguntar algo o modificar ficheros que el README no indica.
 
@@ -426,7 +426,7 @@ Explícitamente **no** se mide ni se muestra: tiempo dedicado a cada tarea o jor
 
 ## 10. Puntos abiertos
 
-Ninguno de estos puntos reabre el alcance: todos cuestionan bordes o consecuencias de funcionalidades ya incluidas.
+Ninguno de estos puntos reabre el alcance: todos cuestionan bordes o consecuencias de funcionalidades ya incluidas. A fecha 2026-11-22 todos los puntos registrados están resueltos; se mantienen como registro de las decisiones tomadas.
 
 **PA-1 — Resuelto.** Si al fusionar en una fecha existente el nuevo guardado incluye una tarea que ya tiene elemento en esa entrada, las notas se concatenan sin rechazar el guardado ni mostrar ningún mensaje propio, y el efecto sobre la tarea sigue la protección por fecha de RF-12; queda integrado en RF-10. El orden y el separador de la concatenación (nota nueva al final, tras una línea en blanco) y que el elemento tome el estado del nuevo guardado quedan confirmados por la propietaria. Se conserva el identificador para no renumerar los demás puntos.
 
