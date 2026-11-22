@@ -5,6 +5,12 @@
   "permissions": {
     "allow": [
       "mcp__codegraph__*"
+    ],
+    "deny": [
+      "Read(prompts.md)",
+      "Edit(prompts.md)",
+      "Read(README.md)",
+      "Edit(README.md)"
     ]
   },
   "hooks": {
