@@ -1,6 +1,6 @@
 ---
 name: prd-mvp
-description: Procedimiento para crear o actualizar el PRD del MVP (docs/prd/prd-mvp.md) a partir de la plantilla, subordinado al documento de alcance. Úsalo al redactar, rehacer o revisar el PRD.
+description: Procedimiento para crear o actualizar el PRD del MVP (docs/prd/mvp.md) a partir de la plantilla, subordinado al documento de alcance. Úsalo al redactar, rehacer o revisar el PRD.
 user-invocable: false
 ---
 
