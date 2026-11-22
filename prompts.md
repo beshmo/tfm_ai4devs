@@ -15,11 +15,11 @@
 
 ## 1. Descripción general del producto
 
-**Prompt 1:**
+**Prompt 1:** /alcance define el alcance del producto y sus funcionalidades principales a partir de la propuesta de dominio y la interfaz de usuario
 
-**Prompt 2:**
+**Prompt 2:** /prd genera el PRD del MVP a partir del alcance y de la propuesta de dominio y la interfaz de usuario
 
-**Prompt 3:**
+**Prompt 3:** completa en el README los puntos 1.1 y 1.2
 
 ---
 
@@ -97,11 +97,11 @@
 
 ### 5. Historias de Usuario
 
-**Prompt 1:**
+**Prompt 1:** /backlog crea las historias de usuario
 
-**Prompt 2:**
+**Prompt 2:** ayudame a resolver los dos huecos reales que el agente encontró en el PRD que bloquean una historia y necesitan mi decisión
 
-**Prompt 3:**
+**Prompt 3:** documenta 3 historias de usuario principales en el punto 5 del README
 
 ---
 
