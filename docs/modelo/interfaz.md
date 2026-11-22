@@ -2,14 +2,14 @@
 
 > Este documento consolida la propuesta inicial (`docs/propuesta/interfaz.md`) con las decisiones ya cerradas en el alcance (`docs/prd/alcance-mvp.md`) y el PRD (`docs/prd/mvp.md`). Se han quitado los elementos que el alcance excluye explícitamente (recordar la última pestaña, el aviso de datos de ejemplo y los botones de competencias más usadas) y las dos reglas de descarga descartadas en PA-8; se han añadido el cierre de sesión y la caducidad por inactividad (PA-11) y el resto de puntos abiertos ya resueltos. La propuesta original se conserva sin modificar como documento histórico.
 
-Estructura de la página principal, pestañas y flujos típicos de uso. La interfaz se adapta a pantallas estrechas y sigue el tema del visor (claro u oscuro).
+Estructura de la página principal, pestañas y flujos típicos de uso. La interfaz se adapta a pantallas estrechas y sigue el tema del sistema (claro u oscuro).
 
 - **Cabecera:** título y un resumen en vivo: número de entradas, tareas y logros.
 - **Pestañas:** Diario, Tareas, Objetivos, Informe.
 - **Sesión:** acción de "Cerrar sesión" accesible desde cualquier pestaña, que termina la sesión; la sesión también caduca sola a los 30 minutos de inactividad. En ambos casos hay que volver a iniciar sesión para ver cualquier dato.
 - **Mensajes emergentes:** confirmaciones breves y errores ("Entrada guardada", "No se pudo guardar…").
 - **Confirmaciones en línea:** cada eliminación pide confirmación dentro de la página (sin diálogos del navegador).
-- **Tema y diseño:** las paletas clara y oscura siguen el tema del visor; las vistas pasan a una columna en pantallas estrechas; la página no tiene desplazamiento horizontal.
+- **Tema y diseño:** las paletas clara y oscura siguen el tema del sistema; las vistas pasan a una columna en pantallas estrechas; la página no tiene desplazamiento horizontal.
 - **Carga y errores:** mensaje de carga hasta que llegan todas las colecciones; mensaje claro si el almacenamiento no está disponible o no se pueden cargar los datos.
 
 ## Pestaña "Diario"
