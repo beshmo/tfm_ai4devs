@@ -9,6 +9,29 @@ schema: spec-driven
 #     We use conventional commits
 #     Domain: e-commerce platform
 
+context: |
+  Tech stack (see docs/adr/0001-stack-tecnologico.md for rationale):
+  - Monorepo: pnpm workspaces (apps/api, apps/web, shared types/DTOs package), no Nx/Turborepo.
+  - Backend: NestJS (TypeScript/Node.js), Prisma over PostgreSQL. Sessions via connect-pg-simple
+    on the same PostgreSQL database, no Redis.
+  - Frontend: React + Vite.
+  - Tests: Jest + supertest (backend), Vitest + React Testing Library (frontend), Playwright (E2E).
+  - Containers: Docker images for api and web; docker compose for local dev and the external reviewer.
+  - CI: GitHub Actions builds and publishes the Docker images.
+  - Cloud deployment: Kubernetes on DOKS (managed control plane); PostgreSQL inside the cluster as a
+    StatefulSet + PersistentVolumeClaim; deploy to DOKS is manual, not automated from CI.
+  - Domain: personal work journal (single private user) linking daily entries, tasks, goals and
+    competencies into a deterministic evaluation-period report. See docs/prd/mvp.md and
+    docs/prd/alcance-mvp.md.
+  Conventions: Conventional Commits, Conventional Branch, TDD (tests first). Spanish for
+  human-facing docs (README, guides, ADRs, PRD, backlog); English for source code, APIs, schemas,
+  config and test names.
+
+  Engineering practices (see docs/adr/0002-practicas-de-ingenieria.md): Clean Architecture in
+  apps/api (domain/use-case code never imports @nestjs/* or @prisma/client; dependencies always
+  point inward, wired via NestJS DI tokens/ports). OWASP Top 10 considered by default when
+  designing every feature, not as a separate end-of-project audit.
+
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
 # Example:

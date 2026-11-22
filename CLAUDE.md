@@ -4,7 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-This repository is at its initial stage: there is no application code yet (only `LICENSE` (GPL-3.0), `docs/`, and `openspec/`). Tooling (package manager, linting, formatting, git hooks) is already set up — see below. Once a tech stack is chosen, add its build/test commands here and fill in the `context:` field of `openspec/config.yaml`.
+This repository is at its initial stage: there is no application code yet (only `LICENSE` (GPL-3.0), `docs/`, and `openspec/`). Tooling (package manager, linting, formatting, git hooks) is already set up — see below. The tech stack has been chosen (see **Tech stack** below and `docs/adr/0001-stack-tecnologico.md`), but the monorepo is not yet scaffolded. Once `apps/api` and `apps/web` exist, replace the placeholder `pnpm test` script with the real per-app build/test commands here.
+
+## Tech stack
+
+Decided in `docs/adr/0001-stack-tecnologico.md` (read it for rationale and alternatives considered):
+
+- **Monorepo**: `pnpm` workspaces (`apps/api`, `apps/web`, a shared types/DTOs package) — no Nx/Turborepo.
+- **Backend**: NestJS (TypeScript/Node.js), Prisma over PostgreSQL. Sequential per-user task IDs (RF-15) use an explicit transaction, not Prisma's `autoincrement()`. Sessions via `connect-pg-simple` on the same PostgreSQL database (no Redis).
+- **Frontend**: React + Vite.
+- **Tests**: Jest + supertest for backend contract/integration tests (idiomatic in Nest); Vitest + React Testing Library for frontend; Playwright for E2E.
+- **Containers**: Docker images for `api` and `web`; `docker compose` for local development and for the external reviewer.
+- **CI**: GitHub Actions builds and publishes the Docker images.
+- **Cloud deployment**: Kubernetes on DOKS (managed control plane). PostgreSQL runs inside the cluster as a `StatefulSet` with a `PersistentVolumeClaim` (seed data only — the seed script must stay idempotent). Deploy to DOKS is manual (`kubectl apply`), not automated from CI.
 
 ## Tooling
 
@@ -41,6 +53,8 @@ New features should go through a change proposal rather than being implemented a
 
 - **TDD**: write the tests first, confirm they fail, then write the code to make them pass.
 - **Ask before assuming**: when something is unclear, ask the user instead of guessing.
+- **Clean Architecture** (`apps/api`): domain and use-case logic never import `@nestjs/*` or `@prisma/client` — dependencies always point inward (infrastructure/interface depend on domain, never the reverse). See `docs/adr/0002-practicas-de-ingenieria.md` for the layering and how NestJS DI wires it.
+- **OWASP Top 10 by default**: consider all ten categories when designing each feature, not as a separate audit at the end. See `docs/adr/0002-practicas-de-ingenieria.md` for the reading of each category applied to this product.
 - **Language**:
   - Spanish: README, guides, ADRs, PRDs, backlog (and other human-facing docs).
   - English: source code, API specs and endpoints, data schemas and database names, config files and scripts, git commit messages, test names and descriptions.
