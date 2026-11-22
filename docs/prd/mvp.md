@@ -283,7 +283,7 @@ _Aceptación:_ guardar sin título se rechaza con un mensaje de error; un objeti
 _Aceptación:_ archivar un objetivo lo mueve a "Archivados" y conserva sus tareas vinculadas; restaurarlo lo devuelve a la sección principal y a los selectores.
 
 **RF-29 — Tarjeta con tres contadores.** Cada tarjeta de objetivo debe mostrar el título, la descripción, "Cómo se mide" y tres contadores: tareas, completadas y logros.
-_Aceptación:_ un objetivo con T-001 (`Completada`, logro), T-002 (`En curso`, logro) y T-003 (`En pausa`) muestra 3 tareas, 1 completada y 2 logros. Los contadores cuentan todas las tareas vinculadas, sin filtrar por periodo. `[SUPUESTO]`
+_Aceptación:_ un objetivo con T-001 (`Completada`, logro), T-002 (`En curso`, logro) y T-003 (`En pausa`) muestra 3 tareas, 1 completada y 2 logros. Los contadores cuentan todas las tareas vinculadas, sin filtrar por periodo.
 
 **RF-30 — Eliminación bloqueada con tareas vinculadas.** No debe poder eliminarse un objetivo con tareas vinculadas; en su lugar, se propone archivarlo. Un objetivo sin tareas se elimina tras confirmar.
 _Aceptación:_ intentar eliminar un objetivo con una tarea vinculada muestra un mensaje que propone archivarlo y el objetivo sigue existiendo.
@@ -311,7 +311,7 @@ _Aceptación:_ en el flujo principal (4.1), la tarea cerrada aparece en el grupo
 **RF-37 — Vista previa y copia en Markdown.** El informe debe ofrecer una vista previa plegable con el informe completo en Markdown (Resumen, Logros, Fortalezas, Detalle por objetivo) y un botón "Copiar Markdown". Si el navegador rechaza el acceso al portapapeles, se abre la vista previa con su texto seleccionado para copiarlo a mano.
 _Aceptación:_ el texto copiado es idéntico al de la vista previa; con el permiso de portapapeles denegado, la vista previa queda abierta y con todo su texto seleccionado.
 
-**RF-38 — Descarga del `.md`.** "Descargar .md" debe ofrecer el fichero `informe-diario-<desde>_<hasta>.md`, donde `<desde>` y `<hasta>` son las fechas del periodo en formato `AAAA-MM-DD` `[SUPUESTO]`.
+**RF-38 — Descarga del `.md`.** "Descargar .md" debe ofrecer el fichero `informe-diario-<desde>_<hasta>.md`, donde `<desde>` y `<hasta>` son las fechas del periodo en formato `AAAA-MM-DD`.
 _Aceptación:_ para el periodo 2026-01-01 a 2026-06-30, el fichero se llama `informe-diario-2026-01-01_2026-06-30.md` y su contenido es idéntico al de la vista previa.
 
 **RF-39 — Exportación determinista.** Con los mismos datos y el mismo periodo, el Markdown exportado debe ser idéntico byte a byte.
@@ -327,9 +327,9 @@ _Aceptación:_ el PDF contiene las cuatro secciones en el mismo orden que el Mar
 **RNF-1 — Coste del registro diario.** El registro del día debe completarse desde un único formulario de la pestaña Diario, con la fecha de hoy por defecto, sin pasar por otras pestañas, incluso para crear una tarea nueva y un objetivo nuevo (solo con título). Los únicos datos obligatorios son la fecha y, por cada elemento, la tarea (existente o el título de una nueva). Es la condición del principio de diseño (sección 3).
 _Comprobación:_ un test E2E registra una entrada con una tarea nueva vinculada a un objetivo nuevo y verifica 0 cambios de pestaña. La nota no es obligatoria: un elemento sin nota es válido si tiene tarea.
 
-**RNF-2 — Respuesta percibida.** En instalación local con los datos semilla, guardar una entrada y ver el mensaje de confirmación debe tardar como máximo 1 s, y generar el informe de un periodo de 6 meses como máximo 2 s. `[SUPUESTO]` Importa porque la sesión de registro es corta y cualquier espera la alarga.
+**RNF-2 — Respuesta percibida.** En instalación local con los datos semilla, guardar una entrada y ver el mensaje de confirmación debe tardar como máximo 1 s, y generar el informe de un periodo de 6 meses como máximo 2 s. Importa porque la sesión de registro es corta y cualquier espera la alarga.
 
-**RNF-3 — Escala objetivo.** El producto debe cumplir RNF-2 con el volumen de una usuaria durante dos periodos de evaluación (un año) de registro casi diario. Se toma como referencia 300 entradas y 600 tareas `[SUPUESTO]`. No se diseña para varias usuarias activas ni para volúmenes de equipo.
+**RNF-3 — Escala objetivo.** El producto debe cumplir RNF-2 con el volumen de una usuaria durante dos periodos de evaluación (un año) de registro casi diario. Se toma como referencia 300 entradas y 600 tareas. No se diseña para varias usuarias activas ni para volúmenes de equipo.
 
 **RNF-4 — Fechas sin hora y zona horaria.** Las fechas de las entradas y la fecha de finalización deben tratarse como fechas de calendario sin hora; "hoy" es la fecha local del navegador; los rangos del informe son inclusivos en los dos extremos.
 _Comprobación:_ un test con el navegador en una zona horaria distinta de UTC guarda una entrada a las 23:30 locales y verifica que queda en la fecha local de ese día, y que aparece en un informe cuyo "hasta" es esa fecha.
@@ -344,13 +344,13 @@ _Comprobación:_ cada regla tiene al menos un test automático (RF-10, RF-11, RF
 _Comprobación:_ revisión del repositorio antes de cada entrega: existe un `.env.example` con las variables vacías y ningún fichero versionado contiene valores de secretos.
 
 **RNF-8 — Dispositivos, diseño y tema.** La interfaz debe funcionar en navegador de escritorio y en pantallas estrechas, pasando a una sola columna sin desplazamiento horizontal, y seguir el tema claro u oscuro del sistema.
-_Comprobación:_ un test E2E a 360 px de ancho `[SUPUESTO]` recorre las cuatro pestañas y verifica que el ancho del documento no supera el de la ventana; con el sistema en tema oscuro, la interfaz usa la paleta oscura.
+_Comprobación:_ un test E2E a 360 px de ancho recorre las cuatro pestañas y verifica que el ancho del documento no supera el de la ventana; con el sistema en tema oscuro, la interfaz usa la paleta oscura.
 
-**RNF-9 — Navegadores.** El producto debe funcionar en las versiones estables actuales de Chrome y Firefox `[SUPUESTO]`. La copia al portapapeles tiene la alternativa de RF-37 para navegadores que la rechacen.
+**RNF-9 — Navegadores.** El producto debe funcionar en las versiones estables actuales de Chrome y Firefox. La copia al portapapeles tiene la alternativa de RF-37 para navegadores que la rechacen.
 
-**RNF-10 — Idioma.** La interfaz, los mensajes y el informe exportado están en español `[SUPUESTO]`.
+**RNF-10 — Idioma.** La interfaz, los mensajes y el informe exportado están en español.
 
-**RNF-11 — Teclado.** Los flujos de registro diario y de generación del informe deben poder completarse solo con teclado; en el campo de competencias, Intro nunca envía el formulario (RF-13) `[SUPUESTO]`.
+**RNF-11 — Teclado.** Los flujos de registro diario y de generación del informe deben poder completarse solo con teclado; en el campo de competencias, Intro nunca envía el formulario (RF-13).
 
 **RNF-12 — Verificabilidad.** El README debe incluir los pasos de instalación en local, un `.env.example` con las variables vacías, los datos semilla ficticios (con los dos usuarios de prueba) y las credenciales de prueba, de modo que un revisor externo reproduzca el flujo principal y ejecute la suite de tests.
 _Comprobación:_ P-4.
@@ -450,5 +450,4 @@ Ninguno de estos puntos reabre el alcance: todos cuestionan bordes o consecuenci
 
 **PA-11 — Resuelto.** "Cerrar sesión" forma parte del requisito transversal de inicio de sesión, sin ser una funcionalidad nueva, y la sesión caduca a los 30 minutos de inactividad; ambas reglas quedan integradas en RF-1. Se conserva el identificador para no renumerar los demás puntos.
 
-**PA-12 — Umbrales marcados como supuesto.** Los tiempos de RNF-2, el volumen de RNF-3, el ancho de RNF-8, los navegadores de RNF-9, el idioma de RNF-10, el teclado de RNF-11, el formato de fecha del nombre del fichero (RF-38) y los contadores sin filtro de periodo (RF-29) no vienen de ninguna fuente; son propuestas.
-_Para decidirlo hace falta:_ que la propietaria confirme o ajuste cada cifra; mientras tanto, se usan como objetivo de prueba sin presentarlos como validados.
+**PA-12 — Resuelto.** La propietaria ha revisado y acepta tal cual los tiempos de RNF-2, el volumen de RNF-3, el ancho de RNF-8, los navegadores de RNF-9, el idioma de RNF-10, el teclado de RNF-11, el formato de fecha del nombre del fichero (RF-38) y los contadores sin filtro de periodo (RF-29), sin cambiar ninguna cifra ni redacción. Quedan confirmados como valores definitivos y ya no se usan solo como objetivo de prueba sin validar. Se conserva el identificador para no renumerar los demás puntos.
