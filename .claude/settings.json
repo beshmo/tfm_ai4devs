@@ -10,7 +10,10 @@
       "Read(prompts.md)",
       "Edit(prompts.md)",
       "Read(README.md)",
-      "Edit(README.md)"
+      "Edit(README.md)",
+      "Edit(docs/propuesta/dominio.md)",
+      "Edit(docs/propuesta/interfaz.md)",
+      "Edit(docs/propuesta/informe.md)"
     ]
   },
   "hooks": {

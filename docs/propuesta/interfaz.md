@@ -25,7 +25,7 @@ Estructura de la página principal, pestañas y flujos típicos de uso. La inter
   - **Casilla de logro.**
   - **Sección plegable "Detalles de la tarea"** (abierta por defecto en tareas nuevas, cerrada en las existentes):
     - Selector de **Objetivo**, con la opción **"+ Nuevo objetivo…"**, que muestra un campo para escribir el título del nuevo objetivo.
-    - **Competencias y tecnologías** con sugerencias en vivo (ver 6.3).
+    - **Competencias y tecnologías** con sugerencias en vivo (ver apartado "Sugerencias de competencias").
     - **Resultado o impacto** y **Evidencias y notas**.
 - Acciones: **+ Añadir otra tarea**, **Quitar** (cuando hay más de un elemento), **Guardar entrada** y **Cancelar** (al editar).
 
@@ -67,7 +67,7 @@ Búsqueda de texto libre (ID, título, resultado, evidencias, competencias y not
 - **Editar tarea:** formulario en línea con título, estado, objetivo (con "+ Nuevo objetivo…"), marca de logro, competencias (con sugerencias), resultado y evidencias.
 - **Eliminar:** requiere confirmación; **se bloquea si la tarea aparece en alguna entrada** (hay que quitarla antes de esas entradas).
 
-### 7.4 Reglas propias de esta pestaña
+### Reglas propias de esta pestaña
 
 - Cambiar el estado aquí fija la fecha de finalización (la existente; si no, la de la última actividad; si no, hoy) o la borra; **no** añade un elemento a la línea de tiempo.
 - Se rechaza un título vacío.

@@ -22,10 +22,18 @@ Léelas antes de responder cualquier cosa sobre alcance, historias, tickets, dat
 1. `docs/tfm/Instrucciones.md` — las reglas de entrega del proyecto. Si algún documento las contradice, prevalecen ellas.
 2. `docs/templates/plantilla-alcance-mvp.md` — estructura obligatoria del documento de alcance (procedimiento en el skill `alcance-mvp`).
 3. `docs/templates/plantilla-mvp.md` — estructura obligatoria del PRD del MVP (procedimiento en el skill `prd-mvp`).
-4. `docs/modelo/dominio.md` — modelo de dominio, invariantes y semántica del informe.
-5. `docs/modelo/interfaz.md` — interfaz del diario de trabajo.
 
 Si falta una fuente o no se puede leer, dilo y pregunta. Nunca la reconstruyas de memoria.
+
+# Propuesta de producto
+
+Estos documentos describen la propuesta de producto que la propietaria ha seleccionado para el proyecto final de AI4Devs. Se usan como referencia de partida, pero el producto final se definirá en el alcance del MVP y en el PRD del MVP, que son los documentos de verdad.
+
+1. `docs/propuesta/dominio.md` — modelo de dominio, invariantes y semántica del informe propuestos.
+2. `docs/propuesta/interfaz.md` — interfaz del diario de trabajo propuesto.
+3. `docs/propuesta/informe.md` — ejemplo de informe de diario de trabajo en formato markdown.
+
+No edites los documentos de propuesta, solo se usan como referencia inicial para elaborar el alcance y el PRD del MVP.
 
 # Documentación de entrega
 
