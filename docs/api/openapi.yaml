@@ -1,0 +1,1350 @@
+openapi: 3.1.0
+info:
+  title: Work Diary API
+  version: 0.1.0
+  summary: REST API of the Work Diary MVP (single-owner work journal and period report).
+  description: |
+    REST API served by `apps/api` (NestJS) under `/api`, on the same origin as the SPA
+    (`docs/arquitectura.md`, decision D-1). This file is the source of truth for the HTTP
+    contract; the zod schemas in `packages/shared` implement it (D-6) and the contract tests
+    (Jest + supertest) check it.
+
+    ## Conventions
+
+    - **JSON only.** Requests with a body must send `Content-Type: application/json`
+      (otherwise `415`). Bodies larger than 100 kB are rejected with `413`.
+    - **Calendar dates** are `YYYY-MM-DD` strings with no time or time zone (RNF-4,
+      `CalendarDate`). Ranges are inclusive at both ends. Technical timestamps are never exposed.
+    - **Public identifiers.** An entry is identified by its date (`/entries/2026-03-10`), a task
+      by its code (`/tasks/T-003`, canonical form only: at least three digits, no extra leading
+      zeros) and an objective by its UUID (`/objectives/{id}`). Internal UUIDs of entries, tasks
+      and skills never leave the API (data model DM-2).
+    - **Collections** are returned as `{ "items": [...] }`, unpaginated: the MVP scale (RNF-3:
+      300 entries, 600 tasks) does not need it. Single resources are returned bare.
+    - **Strict input.** Every request schema has `additionalProperties: false` and length limits
+      (data model DM-7); unknown fields are rejected with `400` (OWASP A04, mass assignment).
+      Strings are trimmed by the server; an empty `outcome` or `evidence` is stored as `null`.
+    - **Status values** are the stable enum `IN_PROGRESS`, `PAUSED`, `COMPLETED`; Spanish labels
+      exist only in the UI and in the exported Markdown.
+
+    ## Session and authorization
+
+    - `POST /auth/login` sets the session cookie `sid` (`HttpOnly`, `SameSite=Strict`, `Secure`
+      in production, `Path=/api`). The session expires after 30 minutes of inactivity; every
+      authenticated request renews it (RF-1).
+    - Every operation requires a session except `POST /auth/login` and `GET /health`; without
+      one the API answers `401 UNAUTHENTICATED` (RF-2).
+    - The user is taken **only** from the session, never from the path, query or body. A
+      resource that belongs to another user answers `404 NOT_FOUND`, exactly like a missing one
+      (RF-3, decision D-8).
+    - CSRF: same origin + `SameSite=Strict` + mandatory JSON content type on writes with a body.
+      No CORS is enabled.
+
+    ## Client date (`X-Client-Date`)
+
+    "Today" is the browser's local date (RNF-4). The SPA sends it in the `X-Client-Date` header
+    on every write operation outside `/auth` (decision D-3). The server accepts it only within
+    ±1 day of its own UTC date and rejects it otherwise with `400 CLIENT_DATE_INVALID`. It is
+    used by `PUT /entries/{date}` (no future entries, RF-7) and `PATCH /tasks/{code}` (completion
+    date of a task with no entries, RF-23).
+
+    ## Errors
+
+    Every error uses the `Error` schema with a stable `code`. Messages are for developers; the
+    SPA shows its own Spanish messages (RF-5). Stack traces are never returned (OWASP A05).
+
+    | HTTP | `code`                    | When                                                          |
+    | ---- | ------------------------- | ------------------------------------------------------------- |
+    | 400  | `VALIDATION_FAILED`       | Body, path or query do not match the schema                   |
+    | 400  | `CLIENT_DATE_INVALID`     | `X-Client-Date` missing, malformed or outside ±1 day          |
+    | 401  | `UNAUTHENTICATED`         | No valid session                                              |
+    | 401  | `INVALID_CREDENTIALS`     | Wrong user or password (generic, RF-1)                        |
+    | 404  | `NOT_FOUND`               | Resource missing or owned by another user                     |
+    | 409  | `TASK_HAS_ENTRIES`        | Deleting a task mentioned by an entry (RF-25)                 |
+    | 409  | `OBJECTIVE_HAS_TASKS`     | Deleting an objective with linked tasks (RF-30)               |
+    | 409  | `TASK_CODE_CONFLICT`      | Task code allocation still failing after the bounded retries (RNF-5); safe to retry |
+    | 413  | `PAYLOAD_TOO_LARGE`       | Body over 100 kB                                              |
+    | 415  | `UNSUPPORTED_MEDIA_TYPE`  | Body that is not `application/json`                           |
+    | 422  | `ENTRY_DATE_IN_FUTURE`    | Entry date after the client's today (RF-7)                    |
+    | 422  | `DUPLICATE_TASK_IN_ENTRY` | The same task appears twice in the submitted items (RF-11)    |
+    | 429  | `RATE_LIMITED`            | Too many login attempts                                       |
+    | 500  | `INTERNAL_ERROR`          | Unexpected failure; nothing was saved (RNF-5)                 |
+
+    Every write operation is a single transaction: it is applied completely or not at all (RNF-5).
+  license:
+    name: GPL-3.0-only
+    url: https://www.gnu.org/licenses/gpl-3.0.html
+
+servers:
+  - url: /api
+    description: Same origin as the SPA (nginx proxy in docker compose, Ingress in Kubernetes)
+
+security:
+  - sessionCookie: []
+
+tags:
+  - name: auth
+    description: Login, logout and current session (RF-1, RF-2)
+  - name: summary
+    description: Header counters (RF-4)
+  - name: entries
+    description: Daily entries and history (RF-7…RF-19)
+  - name: tasks
+    description: Task list, timeline and inline editing (RF-15, RF-20…RF-26)
+  - name: objectives
+    description: Objectives management (RF-27…RF-31)
+  - name: skills
+    description: Skill suggestions (RF-13)
+  - name: reports
+    description: Period report and its Markdown export (RF-32…RF-39)
+  - name: health
+    description: Readiness probe
+
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Log in with a seed account
+      description: |
+        Validates the credentials against the Argon2id hash, regenerates the session
+        (`session.regenerate()`, OWASP A07) and sets the `sid` cookie. The error never reveals
+        whether the user exists (RF-1). Failed attempts are logged (A09) and rate limited.
+        There is no sign-up or password recovery.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+            example:
+              { username: "demo", password: "correct horse battery staple" }
+      responses:
+        "200":
+          description: Logged in
+          headers:
+            Set-Cookie:
+              description: "`sid=…; Path=/api; HttpOnly; SameSite=Strict; Secure`"
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401":
+          description: Wrong user or password
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example:
+                {
+                  code: INVALID_CREDENTIALS,
+                  message: Invalid username or password,
+                }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Log out
+      description: Destroys the session in the database and clears the cookie (RF-1).
+      responses:
+        "204":
+          description: Logged out
+          headers:
+            Set-Cookie:
+              description: Expired `sid` cookie
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+
+  /auth/me:
+    get:
+      tags: [auth]
+      operationId: getCurrentUser
+      summary: Current session user
+      description: Lets the SPA know on startup whether there is a live session (`AuthGate`).
+      responses:
+        "200":
+          description: Session is active
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+
+  /summary:
+    get:
+      tags: [summary]
+      operationId: getSummary
+      summary: Header counters
+      description: |
+        Total entries, tasks and achievements (tasks flagged as achievement) of the user, with
+        no period filter. The SPA refetches it after every mutation (RF-4).
+      responses:
+        "200":
+          description: Counters
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Summary" }
+              example: { entries: 42, tasks: 17, achievements: 3 }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+
+  /entries:
+    get:
+      tags: [entries]
+      operationId: listEntries
+      summary: Entry history
+      description: |
+        All entries of the user by date descending, each with its items in saved order
+        (`position`). Grouping by month is done by the UI (RF-16).
+      responses:
+        "200":
+          description: Entries
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                additionalProperties: false
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Entry" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+
+  /entries/{date}:
+    parameters:
+      - $ref: "#/components/parameters/EntryDate"
+    put:
+      tags: [entries]
+      operationId: saveDailyEntry
+      summary: Save the entry of a date (create or merge)
+      description: |
+        Creates the entry of `date` or, if it already exists, **merges** the submitted items
+        into it (RF-10). Never creates a second entry for the same date.
+
+        - `date` must not be after `X-Client-Date` (RF-7) → `422 ENTRY_DATE_IN_FUTURE`.
+        - The submitted items must not repeat a task (RF-11) → `422 DUPLICATE_TASK_IN_ENTRY`.
+          This applies only to the submitted items, not to the merge with the existing entry.
+        - New tasks (`task.title`) get the next code of the user (RF-15); new objectives
+          (`objective.title`) are created with only a title (RF-8). Each `{ title }` creates one.
+        - Merge of an item whose task already has an item in the entry: the new note is appended
+          after the existing one separated by a blank line (if one of them is empty, the other
+          one is kept as is), and the item takes the new status (RF-10). New tasks go at the end.
+        - Effect on the task (RF-12): the item status becomes the task status (and `completedOn`
+          the entry date if `COMPLETED`, otherwise `null`) only if no later-dated entry mentions
+          the task. Each detail field present in the item is applied only if no later-dated
+          entry changed that same field; it counts as changed by this entry if it differed from
+          the task's value. **Absent detail fields are left untouched and do not count as
+          changed.**
+
+        Repeating the same request does not create a second entry, but appends the note again:
+        the operation is keyed by date, not idempotent.
+      parameters:
+        - $ref: "#/components/parameters/ClientDate"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SaveEntryRequest" }
+            example:
+              items:
+                - task: { code: T-004 }
+                  note: Postmortem written and shared with the team.
+                  status: COMPLETED
+                  isAchievement: true
+                  outcome: 25% fewer concurrent connections on TOMCAT-1 instances
+                  evidence: https://wiki.example/postmortems/TOMCAT-1
+                - task: { title: Review backup policy }
+                  note: ""
+                  status: IN_PROGRESS
+                  objective: { title: Platform reliability }
+                  skills: [Kubernetes, Backups]
+      responses:
+        "200":
+          description: The saved (possibly merged) entry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Entry" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404":
+          description: A referenced task or objective does not exist for this user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409": { $ref: "#/components/responses/TaskCodeConflict" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "422":
+          description: Future date or repeated task
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              examples:
+                future:
+                  value:
+                    {
+                      code: ENTRY_DATE_IN_FUTURE,
+                      message: Entry date is after today,
+                    }
+                duplicate:
+                  value:
+                    code: DUPLICATE_TASK_IN_ENTRY
+                    message: Task T-004 appears more than once in the entry
+                    details:
+                      [{ path: items.1.task.code, message: duplicate task }]
+    patch:
+      tags: [entries]
+      operationId: updateEntry
+      summary: Edit the items of an existing entry
+      description: |
+        **Replaces** the items of the entry; the date cannot change (RF-14). Notes are replaced,
+        not appended. At least one item is required: to empty an entry, delete it.
+
+        - An item kept for the same task keeps its previous "changed" marks and adds the ones
+          changed by this edit; detail fields follow the same rules as `PUT` (RF-12).
+        - For every task whose item is removed, status and `completedOn` are recalculated from
+          the most recent remaining entry that mentions it; if none remains, the task keeps its
+          current values and becomes a task without entries. Detail fields are never
+          recalculated (RF-14).
+        - Same validation as `PUT`: no repeated task (RF-11), new tasks and objectives allowed.
+      parameters:
+        - $ref: "#/components/parameters/ClientDate"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SaveEntryRequest" }
+      responses:
+        "200":
+          description: The updated entry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Entry" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/TaskCodeConflict" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "422":
+          description: Repeated task
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [entries]
+      operationId: deleteEntry
+      summary: Delete an entry
+      description: |
+        Deletes the entry and its items, never its tasks. Affected tasks are recalculated as in
+        `PATCH` (RF-14, RF-18). Confirmation is a UI concern (RF-5).
+      parameters:
+        - $ref: "#/components/parameters/ClientDate"
+      responses:
+        "204": { description: Deleted }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /tasks:
+    get:
+      tags: [tasks]
+      operationId: listTasks
+      summary: Task list by most recent activity
+      description: |
+        All tasks of the user ordered by last activity date descending, then by code ascending;
+        tasks without entries go last, by code ascending (RF-20). Each task carries its detail
+        fields so the expanded row needs no extra call (RF-21).
+
+        The query parameters implement the optional search and filters (RF-26, S2); they are
+        combined with AND. The result counter is `items.length`.
+      parameters:
+        - name: q
+          in: query
+          description: |
+            Free text, case-insensitive, matched against code, title, outcome, evidence, skill
+            names and entry notes.
+          schema: { type: string, minLength: 1, maxLength: 200 }
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/TaskStatus" }
+        - name: objective
+          in: query
+          description: Objective UUID, or `none` for tasks without objective.
+          schema:
+            oneOf:
+              - { type: string, format: uuid }
+              - { type: string, const: none }
+        - name: skill
+          in: query
+          description: Skill name, compared case-insensitively.
+          schema: { type: string, minLength: 1, maxLength: 60 }
+        - name: achievementsOnly
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: Tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                additionalProperties: false
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Task" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+
+  /tasks/{code}:
+    parameters:
+      - $ref: "#/components/parameters/TaskCode"
+    patch:
+      tags: [tasks]
+      operationId: updateTask
+      summary: Edit a task inline
+      description: |
+        Partial update of title, status, objective, achievement flag, skills, outcome and
+        evidence (RF-22). Changes made here create no entry item, add nothing to the timeline
+        and never trigger the later-entry protection of RF-12.
+
+        Status (RF-23, RF-24):
+        - To `COMPLETED` from another status: `completedOn` = last activity date of the task, or
+          `X-Client-Date` if it has no entries.
+        - `COMPLETED` to `COMPLETED`: `completedOn` is unchanged.
+        - Leaving `COMPLETED`: `completedOn` = `null`.
+
+        `skills` replaces the whole list, normalized as in RF-13. `objective: { title }` creates
+        an objective with only a title (RF-27). The code never changes (RF-15).
+      parameters:
+        - $ref: "#/components/parameters/ClientDate"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateTaskRequest" }
+            example: { status: COMPLETED, isAchievement: true }
+      responses:
+        "200":
+          description: The updated task
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404":
+          description: Task or referenced objective not found for this user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+    delete:
+      tags: [tasks]
+      operationId: deleteTask
+      summary: Delete a task without entries
+      description: |
+        Only a task that no entry mentions can be deleted (RF-25). Its code is retired for good
+        and never reused (RF-15).
+      parameters:
+        - $ref: "#/components/parameters/ClientDate"
+      responses:
+        "204": { description: Deleted }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: The task is mentioned by at least one entry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example:
+                {
+                  code: TASK_HAS_ENTRIES,
+                  message: Task T-004 is mentioned by 2 entries,
+                }
+
+  /tasks/{code}/timeline:
+    parameters:
+      - $ref: "#/components/parameters/TaskCode"
+    get:
+      tags: [tasks]
+      operationId: getTaskTimeline
+      summary: Task follow-up timeline
+      description: |
+        One point per entry that mentions the task, from the most recent to the oldest, with the
+        status after that day. The UI draws the status indicator where it changes from the
+        previous point (RF-21).
+      responses:
+        "200":
+          description: Timeline
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                additionalProperties: false
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/TimelinePoint" }
+              example:
+                items:
+                  - {
+                      date: "2026-11-19",
+                      note: Postmortem written.,
+                      status: COMPLETED,
+                    }
+                  - {
+                      date: "2026-11-16",
+                      note: Incident opened.,
+                      status: IN_PROGRESS,
+                    }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /objectives:
+    get:
+      tags: [objectives]
+      operationId: listObjectives
+      summary: Objectives with counters
+      description: |
+        All objectives of the user, active and archived (the UI shows archived ones in their own
+        section), ordered by creation, oldest first. Each one carries its three counters over
+        all its tasks, with no period filter (RF-29).
+      responses:
+        "200":
+          description: Objectives
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                additionalProperties: false
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Objective" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+    post:
+      tags: [objectives]
+      operationId: createObjective
+      summary: Create an objective
+      description: Title is required and not unique (RF-27, RF-36).
+      parameters:
+        - $ref: "#/components/parameters/ClientDate"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateObjectiveRequest" }
+            example:
+              title: Maintenance of the portal service of PROYECTO-1
+              description: ""
+              measurement: Service uptime 99.99%
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: "`/api/objectives/{id}`"
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Objective" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+
+  /objectives/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ObjectiveId"
+    patch:
+      tags: [objectives]
+      operationId: updateObjective
+      summary: Edit an objective
+      parameters:
+        - $ref: "#/components/parameters/ClientDate"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateObjectiveRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Objective" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+    delete:
+      tags: [objectives]
+      operationId: deleteObjective
+      summary: Delete an objective without tasks
+      description: |
+        An objective with linked tasks cannot be deleted; the UI proposes archiving it instead
+        (RF-30).
+      parameters:
+        - $ref: "#/components/parameters/ClientDate"
+      responses:
+        "204": { description: Deleted }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: The objective has linked tasks
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example:
+                {
+                  code: OBJECTIVE_HAS_TASKS,
+                  message: Objective has 4 linked tasks,
+                }
+
+  /objectives/{id}/archive:
+    parameters:
+      - $ref: "#/components/parameters/ObjectiveId"
+    post:
+      tags: [objectives]
+      operationId: archiveObjective
+      summary: Archive an objective
+      description: |
+        Idempotent. Tasks stay linked, and the objective still appears in the report when it has
+        tasks worked in the period (RF-28, RF-36).
+      parameters:
+        - $ref: "#/components/parameters/ClientDate"
+      responses:
+        "200":
+          description: Archived
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Objective" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /objectives/{id}/restore:
+    parameters:
+      - $ref: "#/components/parameters/ObjectiveId"
+    post:
+      tags: [objectives]
+      operationId: restoreObjective
+      summary: Restore an archived objective
+      description: Idempotent (RF-28).
+      parameters:
+        - $ref: "#/components/parameters/ClientDate"
+      responses:
+        "200":
+          description: Restored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Objective" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /skills:
+    get:
+      tags: [skills]
+      operationId: suggestSkills
+      summary: Skill suggestions while typing
+      description: |
+        Known skills of the user (those used by at least one task) whose normalized name
+        contains the normalized text (trimmed, lower case; `%` and `_` are literal). Matches
+        that start with the text come first, then the rest; each group is ordered by normalized
+        name using code-unit comparison, so the first suggestion is deterministic (RF-13). The UI
+        does not call it with an empty field.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 60 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 20, default: 10 }
+      responses:
+        "200":
+          description: Suggested skill names, with their stored spelling
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                additionalProperties: false
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/SkillName" }
+              example: { items: [Kubernetes, Kubernetes networking] }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+
+  /reports:
+    get:
+      tags: [reports]
+      operationId: generatePeriodReport
+      summary: Period report and its Markdown
+      description: |
+        Builds the report of the inclusive range `[from, to]` with pure domain functions and
+        returns both the structured model (rendered by the UI and used for the PDF, RF-40) and
+        the Markdown export. With the same data and period the Markdown is identical byte for
+        byte: no generation date, `\n` line breaks and a total order for every list (RF-39,
+        decision D-2).
+
+        The client computes the period (RF-32: last 6 months, January–June, July–December,
+        custom), including swapping an inverted custom range; the API rejects `from > to`.
+        Semantics (PRD §3): a task is **worked** if an entry in the range mentions it;
+        **completed** and **achievement** depend on `completedOn` falling in the range.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { $ref: "#/components/schemas/CalendarDate" }
+        - name: to
+          in: query
+          required: true
+          schema: { $ref: "#/components/schemas/CalendarDate" }
+      responses:
+        "200":
+          description: Report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Report" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+
+  /health:
+    get:
+      tags: [health]
+      operationId: health
+      summary: Readiness probe
+      description: Used by the Kubernetes readiness probe. Returns no data and needs no session.
+      security: []
+      responses:
+        "200":
+          description: The API is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status: { type: string, const: ok }
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: sid
+      description: |
+        Signed session id set by `POST /auth/login` (`express-session` + `connect-pg-simple`).
+        `HttpOnly`, `SameSite=Strict`, `Secure` in production; 30 minutes rolling inactivity.
+
+  parameters:
+    EntryDate:
+      name: date
+      in: path
+      required: true
+      description: Calendar date of the entry.
+      schema: { $ref: "#/components/schemas/CalendarDate" }
+    TaskCode:
+      name: code
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/TaskCode" }
+    ObjectiveId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ClientDate:
+      name: X-Client-Date
+      in: header
+      required: true
+      description: Browser local date; accepted within ±1 day of the server UTC date (D-3).
+      schema: { $ref: "#/components/schemas/CalendarDate" }
+      example: "2026-11-23"
+
+  responses:
+    ValidationFailed:
+      description: Request does not match the schema
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            code: VALIDATION_FAILED
+            message: Request validation failed
+            details: [{ path: items.0.status, message: Invalid enum value }]
+    BadRequest:
+      description: Schema validation failed or invalid `X-Client-Date`
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          examples:
+            validation:
+              value:
+                code: VALIDATION_FAILED
+                message: Request validation failed
+                details:
+                  [
+                    {
+                      path: title,
+                      message: String must contain at least 1 character,
+                    },
+                  ]
+            clientDate:
+              value:
+                {
+                  code: CLIENT_DATE_INVALID,
+                  message: X-Client-Date is missing or out of range,
+                }
+    Unauthenticated:
+      description: No valid session
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { code: UNAUTHENTICATED, message: Authentication required }
+    NotFound:
+      description: Not found, or owned by another user (D-8)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { code: NOT_FOUND, message: Resource not found }
+    TaskCodeConflict:
+      description: Task code allocation failed after the bounded retries; nothing was saved
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            {
+              code: TASK_CODE_CONFLICT,
+              message: Could not allocate a task code,
+              retry,
+            }
+    PayloadTooLarge:
+      description: Body over 100 kB
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    UnsupportedMediaType:
+      description: Body is not `application/json`
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimited:
+      description: Too many login attempts
+      headers:
+        Retry-After:
+          description: Seconds to wait
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { code: RATE_LIMITED, message: Too many attempts }
+
+  schemas:
+    # ---------- Scalars ----------
+    CalendarDate:
+      type: string
+      format: date
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Calendar date `YYYY-MM-DD`, no time or zone (RNF-4).
+      examples: ["2026-03-10"]
+    TaskCode:
+      type: string
+      pattern: '^T-(?:00[1-9]|0[1-9]\d|[1-9]\d{2,})$'
+      description: Stable task code, canonical form (`T-003`, not `T-3` or `T-0003`) (RF-15).
+      examples: [T-003, T-1042]
+    TaskStatus:
+      type: string
+      enum: [IN_PROGRESS, PAUSED, COMPLETED]
+      description: "`En curso`, `En pausa`, `Completada` in the UI."
+    SkillName:
+      type: string
+      minLength: 1
+      maxLength: 60
+      description: Skill name. Compared case-insensitively after trimming (RF-13).
+    Title:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: Non-blank after trimming.
+    LongText:
+      type: [string, "null"]
+      maxLength: 4000
+
+    # ---------- Auth ----------
+    LoginRequest:
+      type: object
+      required: [username, password]
+      additionalProperties: false
+      properties:
+        username: { type: string, minLength: 1, maxLength: 60 }
+        password:
+          { type: string, minLength: 1, maxLength: 256, format: password }
+    User:
+      type: object
+      required: [username]
+      additionalProperties: false
+      properties:
+        username: { type: string }
+
+    # ---------- Summary ----------
+    Summary:
+      type: object
+      required: [entries, tasks, achievements]
+      additionalProperties: false
+      properties:
+        entries: { type: integer, minimum: 0 }
+        tasks: { type: integer, minimum: 0 }
+        achievements:
+          {
+            type: integer,
+            minimum: 0,
+            description: Tasks flagged as achievement,
+          }
+
+    # ---------- References used in requests ----------
+    ExistingTaskRef:
+      type: object
+      required: [code]
+      additionalProperties: false
+      properties:
+        code: { $ref: "#/components/schemas/TaskCode" }
+    NewTaskRef:
+      type: object
+      required: [title]
+      additionalProperties: false
+      description: '"Nueva tarea…": creates a task with the next code (RF-8, RF-15).'
+      properties:
+        title: { $ref: "#/components/schemas/Title" }
+    ExistingObjectiveRef:
+      type: object
+      required: [id]
+      additionalProperties: false
+      properties:
+        id: { type: string, format: uuid }
+    NewObjectiveRef:
+      type: object
+      required: [title]
+      additionalProperties: false
+      description: '"+ Nuevo objetivo…": creates an objective with only a title (RF-8, RF-27).'
+      properties:
+        title: { $ref: "#/components/schemas/Title" }
+    ObjectiveAssignment:
+      description: '`null` removes the objective ("Sin objetivo").'
+      oneOf:
+        - type: "null"
+        - $ref: "#/components/schemas/ExistingObjectiveRef"
+        - $ref: "#/components/schemas/NewObjectiveRef"
+    SkillList:
+      type: array
+      maxItems: 20
+      items: { $ref: "#/components/schemas/SkillName" }
+      description: Duplicates (case-insensitive) are removed; existing spellings are reused (RF-13).
+
+    # ---------- Entries ----------
+    EntryItemInput:
+      type: object
+      required: [task, status]
+      additionalProperties: false
+      description: |
+        One task within the submitted entry. `task`, `note` and `status` are the item itself;
+        the rest are task detail fields: **optional, and when absent left untouched** (RF-12).
+      properties:
+        task:
+          oneOf:
+            - $ref: "#/components/schemas/ExistingTaskRef"
+            - $ref: "#/components/schemas/NewTaskRef"
+        note: { type: string, maxLength: 4000, default: "" }
+        status: { $ref: "#/components/schemas/TaskStatus" }
+        isAchievement: { type: boolean }
+        objective: { $ref: "#/components/schemas/ObjectiveAssignment" }
+        skills: { $ref: "#/components/schemas/SkillList" }
+        outcome: { $ref: "#/components/schemas/LongText" }
+        evidence: { $ref: "#/components/schemas/LongText" }
+    SaveEntryRequest:
+      type: object
+      required: [items]
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { $ref: "#/components/schemas/EntryItemInput" }
+    ObjectiveRef:
+      type: object
+      required: [id, title, archived]
+      additionalProperties: false
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        archived: { type: boolean }
+    TaskRef:
+      type: object
+      required: [code, title, status, isAchievement, objective, skills]
+      additionalProperties: false
+      description: Current values of the task, as shown in the history (RF-16).
+      properties:
+        code: { $ref: "#/components/schemas/TaskCode" }
+        title: { type: string }
+        status: { $ref: "#/components/schemas/TaskStatus" }
+        isAchievement: { type: boolean }
+        objective:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/ObjectiveRef"
+        skills:
+          type: array
+          items: { $ref: "#/components/schemas/SkillName" }
+          description: In the order they were entered.
+    EntryItem:
+      type: object
+      required: [task, note, status]
+      additionalProperties: false
+      properties:
+        task: { $ref: "#/components/schemas/TaskRef" }
+        note: { type: string }
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+          description: Status of the task after that day (not necessarily the current one).
+    Entry:
+      type: object
+      required: [date, items]
+      additionalProperties: false
+      properties:
+        date: { $ref: "#/components/schemas/CalendarDate" }
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/EntryItem" }
+          description: In saved order.
+      example:
+        date: "2026-11-19"
+        items:
+          - task:
+              code: T-004
+              title: Incidente instancia tomcat TOMCAT-1
+              status: COMPLETED
+              isAchievement: true
+              objective:
+                id: 3f1c2a9e-5b7d-4c1e-9a2f-8d6e4b0c7a11
+                title: Mantenimiento del servicio de portales del proyecto PROYECTO-1
+                archived: false
+              skills: [Resolución de incidencias]
+            note: Postmortem redactado y compartido.
+            status: COMPLETED
+
+    # ---------- Tasks ----------
+    Task:
+      type: object
+      required:
+        - code
+        - title
+        - status
+        - completedOn
+        - isAchievement
+        - objective
+        - skills
+        - outcome
+        - evidence
+        - lastActivityOn
+        - entryCount
+      additionalProperties: false
+      properties:
+        code: { $ref: "#/components/schemas/TaskCode" }
+        title: { type: string }
+        status: { $ref: "#/components/schemas/TaskStatus" }
+        completedOn:
+          description: Not null if and only if `status` is `COMPLETED` (RF-24).
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/CalendarDate"
+        isAchievement: { type: boolean }
+        objective:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/ObjectiveRef"
+        skills:
+          type: array
+          items: { $ref: "#/components/schemas/SkillName" }
+        outcome: { type: [string, "null"] }
+        evidence:
+          type: [string, "null"]
+          description: Free text with links; rendered as links by the browser, never fetched by the server (OWASP A10).
+        lastActivityOn:
+          description: Date of the most recent entry that mentions the task; `null` without entries (RF-20).
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/CalendarDate"
+        entryCount: { type: integer, minimum: 0 }
+      example:
+        code: T-004
+        title: Incidente instancia tomcat TOMCAT-1
+        status: COMPLETED
+        completedOn: "2026-11-19"
+        isAchievement: true
+        objective:
+          id: 3f1c2a9e-5b7d-4c1e-9a2f-8d6e4b0c7a11
+          title: Mantenimiento del servicio de portales del proyecto PROYECTO-1
+          archived: false
+        skills: [Resolución de incidencias]
+        outcome: Reducción del 25% de las conexiones simultáneas en las instancias tomcat TOMCAT-1
+        evidence: https://wiki.interna/postmortems/TOMCAT-1
+        lastActivityOn: "2026-11-19"
+        entryCount: 2
+    UpdateTaskRequest:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      description: Only the fields present are changed.
+      properties:
+        title: { $ref: "#/components/schemas/Title" }
+        status: { $ref: "#/components/schemas/TaskStatus" }
+        objective: { $ref: "#/components/schemas/ObjectiveAssignment" }
+        isAchievement: { type: boolean }
+        skills: { $ref: "#/components/schemas/SkillList" }
+        outcome: { $ref: "#/components/schemas/LongText" }
+        evidence: { $ref: "#/components/schemas/LongText" }
+    TimelinePoint:
+      type: object
+      required: [date, note, status]
+      additionalProperties: false
+      properties:
+        date: { $ref: "#/components/schemas/CalendarDate" }
+        note: { type: string }
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+          description: Status after that day.
+
+    # ---------- Objectives ----------
+    Objective:
+      type: object
+      required: [id, title, description, measurement, archived, counts]
+      additionalProperties: false
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: [string, "null"] }
+        measurement:
+          type: [string, "null"]
+          description: '"Cómo se mide".'
+        archived: { type: boolean }
+        counts:
+          type: object
+          required: [tasks, completed, achievements]
+          additionalProperties: false
+          description: Over all linked tasks, no period filter (RF-29).
+          properties:
+            tasks: { type: integer, minimum: 0 }
+            completed: { type: integer, minimum: 0 }
+            achievements: { type: integer, minimum: 0 }
+    CreateObjectiveRequest:
+      type: object
+      required: [title]
+      additionalProperties: false
+      properties:
+        title: { $ref: "#/components/schemas/Title" }
+        description: { type: [string, "null"], maxLength: 2000 }
+        measurement: { type: [string, "null"], maxLength: 2000 }
+    UpdateObjectiveRequest:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        title: { $ref: "#/components/schemas/Title" }
+        description: { type: [string, "null"], maxLength: 2000 }
+        measurement: { type: [string, "null"], maxLength: 2000 }
+
+    # ---------- Report ----------
+    DateInterval:
+      type: object
+      required: [from, to]
+      additionalProperties: false
+      description: |
+        First and last entry dates of the task **within the period** (RF-34, RF-36). Equal ends
+        mean a single day, shown as one date.
+      properties:
+        from: { $ref: "#/components/schemas/CalendarDate" }
+        to: { $ref: "#/components/schemas/CalendarDate" }
+    ReportObjective:
+      type: object
+      required: [id, title, measurement, archived]
+      additionalProperties: false
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        measurement: { type: [string, "null"] }
+        archived: { type: boolean }
+    ReportAchievement:
+      type: object
+      required:
+        [
+          code,
+          title,
+          objective,
+          completedOn,
+          interval,
+          entryCount,
+          outcome,
+          skills,
+          evidence,
+        ]
+      additionalProperties: false
+      description: |
+        Task flagged as achievement with `completedOn` in the period. Without entries in the
+        period, `interval` is the single day `completedOn` and `entryCount` is 0 (RF-34).
+      properties:
+        code: { $ref: "#/components/schemas/TaskCode" }
+        title: { type: string }
+        objective:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/ObjectiveRef"
+        completedOn: { $ref: "#/components/schemas/CalendarDate" }
+        interval: { $ref: "#/components/schemas/DateInterval" }
+        entryCount: { type: integer, minimum: 0 }
+        outcome:
+          type: [string, "null"]
+          description: "`null` → the UI and the Markdown show a hint to add it."
+        skills:
+          type: array
+          items: { $ref: "#/components/schemas/SkillName" }
+        evidence: { type: [string, "null"] }
+    ReportStrength:
+      type: object
+      required: [skill, taskCount, entryCount, taskCodes]
+      additionalProperties: false
+      properties:
+        skill: { $ref: "#/components/schemas/SkillName" }
+        taskCount:
+          type: integer
+          minimum: 1
+          description: Tasks worked in the period that use the skill. The UI draws the bar relative to the first one.
+        entryCount:
+          type: integer
+          minimum: 1
+          description: Distinct entries in the period mentioning at least one of those tasks (RF-35).
+        taskCodes:
+          type: array
+          maxItems: 6
+          items: { $ref: "#/components/schemas/TaskCode" }
+          description: First 6 codes in ascending order.
+    ReportObjectiveTask:
+      type: object
+      required:
+        [code, title, status, isAchievement, interval, entryCount, outcome]
+      additionalProperties: false
+      properties:
+        code: { $ref: "#/components/schemas/TaskCode" }
+        title: { type: string }
+        status: { $ref: "#/components/schemas/TaskStatus" }
+        isAchievement: { type: boolean }
+        interval: { $ref: "#/components/schemas/DateInterval" }
+        entryCount: { type: integer, minimum: 1 }
+        outcome: { type: [string, "null"] }
+    ReportObjectiveGroup:
+      type: object
+      required: [objective, tasks]
+      additionalProperties: false
+      properties:
+        objective:
+          description: '`null` = group "Sin objetivo asignado", always last (RF-36).'
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/ReportObjective"
+        tasks:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/ReportObjectiveTask" }
+          description: Tasks worked in the period, by code ascending.
+    Report:
+      type: object
+      required:
+        [period, summary, achievements, strengths, byObjective, markdown]
+      additionalProperties: false
+      description: All lists are already in their final, total order (RF-34, RF-35, RF-36).
+      properties:
+        period: { $ref: "#/components/schemas/DateInterval" }
+        summary:
+          type: object
+          required: [entries, tasksWorked, tasksCompleted, achievements]
+          additionalProperties: false
+          description: RF-33; `achievements` equals `achievements.length`.
+          properties:
+            entries: { type: integer, minimum: 0 }
+            tasksWorked: { type: integer, minimum: 0 }
+            tasksCompleted: { type: integer, minimum: 0 }
+            achievements: { type: integer, minimum: 0 }
+        achievements:
+          type: array
+          items: { $ref: "#/components/schemas/ReportAchievement" }
+          description: By `completedOn` descending, then code ascending (RF-34).
+        strengths:
+          type: array
+          maxItems: 15
+          items: { $ref: "#/components/schemas/ReportStrength" }
+          description: By `taskCount` desc, `entryCount` desc, skill name asc (RF-35).
+        byObjective:
+          type: array
+          items: { $ref: "#/components/schemas/ReportObjectiveGroup" }
+          description: |
+            Only objectives with tasks worked in the period, archived included; by title
+            ascending, ties by lowest task code; "Sin objetivo asignado" last (RF-36).
+        markdown:
+          type: string
+          description: |
+            Full export in the exact format of `docs/modelo/informe.md`; byte-identical for the
+            same data and period (RF-39). The client downloads it as
+            `informe-diario-<from>_<to>.md` (RF-38).
+
+    # ---------- Errors ----------
+    Error:
+      type: object
+      required: [code, message]
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          enum:
+            - VALIDATION_FAILED
+            - CLIENT_DATE_INVALID
+            - UNAUTHENTICATED
+            - INVALID_CREDENTIALS
+            - NOT_FOUND
+            - TASK_HAS_ENTRIES
+            - OBJECTIVE_HAS_TASKS
+            - TASK_CODE_CONFLICT
+            - PAYLOAD_TOO_LARGE
+            - UNSUPPORTED_MEDIA_TYPE
+            - ENTRY_DATE_IN_FUTURE
+            - DUPLICATE_TASK_IN_ENTRY
+            - RATE_LIMITED
+            - INTERNAL_ERROR
+        message: { type: string }
+        details:
+          type: array
+          description: Field-level problems, for `VALIDATION_FAILED` and `DUPLICATE_TASK_IN_ENTRY`.
+          items:
+            type: object
+            required: [path, message]
+            additionalProperties: false
+            properties:
+              path:
+                {
+                  type: string,
+                  description: "Dotted path, e.g. `items.1.task.code`",
+                }
+              message: { type: string }

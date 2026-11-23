@@ -3,7 +3,7 @@
 > **Estado:** Aceptada · **Fecha:** 2026-11-23
 > **Base:** [PRD del MVP](./prd/mvp.md), [ADR-0001 — Stack tecnológico](./adr/0001-stack-tecnologico.md), [ADR-0002 — Prácticas de ingeniería](./adr/0002-practicas-de-ingenieria.md), [modelo de dominio](./modelo/dominio.md), [interfaz](./modelo/interfaz.md) e [informe de referencia](./modelo/informe.md).
 > **Qué hay aquí:** la arquitectura del sistema, sus componentes principales, cómo se reparten las reglas del PRD entre ellos y cómo se despliega. El stack ya está decidido en ADR-0001 y no se vuelve a discutir; lo que este documento añade y no está en los ADR se recoge en la sección 11 (decisiones D-1 a D-8, revisadas y aprobadas).
-> **Qué no hay aquí:** el modelo de datos detallado (columnas, tipos, migraciones), que está en [modelo-de-datos.md](./modelo-de-datos.md), ni la especificación completa de la API (cuerpos, códigos de error por endpoint). Aquí solo aparecen al nivel necesario para entender los componentes.
+> **Qué no hay aquí:** el modelo de datos detallado (columnas, tipos, migraciones), que está en [modelo-de-datos.md](./modelo-de-datos.md), ni la especificación completa de la API (cuerpos, códigos de error por endpoint), que está en [api/openapi.yaml](./api/openapi.yaml). Aquí solo aparecen al nivel necesario para entender los componentes.
 
 ---
 
@@ -292,14 +292,14 @@ El PRD fija que "hoy" es la **fecha local del navegador** (RNF-4, supuesto 4.3.3
 | Login                   | `POST /api/auth/login`; mensaje de error genérico que no revela si el usuario existe (RF-1); `session.regenerate()` tras autenticar (A07); límite de intentos con `@nestjs/throttler`                                    |
 | Sesión                  | `express-session` + `connect-pg-simple`; cookie `HttpOnly`, `SameSite=Strict`, `Secure` en producción; `rolling: true` con `maxAge` de 30 min, de modo que cada petición reinicia la inactividad (RF-1)                  |
 | Logout                  | `POST /api/auth/logout` destruye la sesión en la base y borra la cookie                                                                                                                                                  |
-| Guard global            | `SessionGuard` exige sesión en todo `/api` salvo `login`; sin sesión, `401` (RF-2). Un test de contrato recorre todas las rutas registradas y comprueba el `401`                                                         |
+| Guard global            | `SessionGuard` exige sesión en todo `/api` salvo `login` y `health`; sin sesión, `401` (RF-2). Un test de contrato recorre todas las rutas registradas y comprueba el `401`                                              |
 | Aislamiento (RF-3, A01) | `userId` se toma solo de la sesión, nunca del cuerpo ni de la URL. Todos los métodos de los puertos lo exigen y todas las consultas filtran por él; un recurso de otra usuaria responde `404`, igual que uno inexistente |
 | CSRF                    | Mismo origen + `SameSite=Strict` + exigencia de `Content-Type: application/json` en las escrituras                                                                                                                       |
 | Errores                 | `DomainErrorFilter` traduce errores de dominio a `400`/`404`/`409`/`422` con un código estable; nunca se exponen trazas en producción (A05). Se registran los fallos de login (A09)                                      |
 
 ### 5.8 Superficie de la API
 
-Recursos principales (la especificación completa irá en su propio documento). Todo bajo `/api`, en inglés, JSON, fechas como `AAAA-MM-DD`.
+Recursos principales (la especificación completa está en [api/openapi.yaml](./api/openapi.yaml)). Todo bajo `/api`, en inglés, JSON, fechas como `AAAA-MM-DD`.
 
 | Método y ruta                                             | Caso de uso                           | Notas                                                           |
 | --------------------------------------------------------- | ------------------------------------- | --------------------------------------------------------------- |
@@ -313,7 +313,7 @@ Recursos principales (la especificación completa irá en su propio documento). 
 | `PATCH /tasks/{code}` · `DELETE /tasks/{code}`            | `UpdateTask` · `DeleteTask`           | `409` si la tarea tiene entradas (RF-25)                        |
 | `GET/POST /objectives` · `PATCH/DELETE /objectives/{id}`  | CRUD de objetivos                     | Contadores en la respuesta (RF-29); `409` con tareas (RF-30)    |
 | `POST /objectives/{id}/archive` · `/restore`              | `Archive/RestoreObjective`            | RF-28                                                           |
-| `GET /skills?prefix=`                                     | `SuggestSkills`                       | RF-13                                                           |
+| `GET /skills?q=`                                          | `SuggestSkills`                       | RF-13                                                           |
 | `GET /reports?from=&to=`                                  | `GeneratePeriodReport`                | Devuelve modelo y Markdown (RF-33…RF-39)                        |
 
 El identificador público de una tarea es su código (`T-003`); internamente cada tabla usa una clave sustituta y la unicidad del código es por usuaria.

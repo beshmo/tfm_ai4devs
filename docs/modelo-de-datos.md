@@ -3,7 +3,7 @@
 > **Estado:** Aceptada · **Fecha:** 2026-11-23
 > **Base:** [modelo de dominio](./modelo/dominio.md), [arquitectura](./arquitectura.md) (en especial §5.3 y §5.9 y las decisiones D-4 y D-5), [PRD del MVP](./prd/mvp.md) y [ADR-0001 — Stack tecnológico](./adr/0001-stack-tecnologico.md).
 > **Qué hay aquí:** el esquema físico en PostgreSQL (tablas, columnas, tipos, claves, restricciones e índices), el `schema.prisma` que lo genera, el SQL que Prisma no sabe expresar, la correspondencia con el dominio y las consultas que sostienen las reglas del PRD.
-> **Qué no hay aquí:** la especificación de la API (cuerpos y errores por endpoint) ni el contenido del _seed_.
+> **Qué no hay aquí:** la especificación de la API (cuerpos y errores por endpoint), que está en [api/openapi.yaml](./api/openapi.yaml), ni el contenido del _seed_.
 
 ---
 
