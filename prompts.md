@@ -27,7 +27,8 @@
 
 ### **2.1. Diagrama de arquitectura:**
 
-**Prompt 1:**
+**Prompt 1:** diseña la arquitectura, componentes, diagrama, etc. de la aplicación descrita en docs/prd/mvp.md Escribe la arquitectura, y los componentes principales de la aplicación, dentro del fichero
+docs/arquitectura.md
 
 **Prompt 2:**
 
