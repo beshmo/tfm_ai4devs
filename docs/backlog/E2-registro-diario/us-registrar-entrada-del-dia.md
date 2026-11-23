@@ -68,7 +68,7 @@ Esta historia carga con la base de los tests E2E (P-5). Las tablas que escribe (
 
 - **Capa:** base de datos.
 - **Origen:** RF-15 · D-5 · [modelo de datos](../../modelo-de-datos.md) §3.3, §5, §9.
-- **Entrega:** migración con la tabla `task_code_sequence` y su `CHECK`; el _seed_ añade la fila de cada usuaria con `last_number` igual al mayor número de tarea sembrado (`GREATEST`, nunca baja).
+- **Entrega:** migración `add_task_code_sequence` con la tabla `task_code_sequence` y su `CHECK`; el _seed_ añade la fila de cada usuaria con `last_number` igual al mayor número de tarea sembrado (`GREATEST`, nunca baja).
 - **DoD específico:**
   - Tests escritos antes: `last_number` negativo se rechaza; ejecutar el _seed_ dos veces no duplica filas ni baja `last_number`.
 

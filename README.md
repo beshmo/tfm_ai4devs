@@ -547,13 +547,205 @@ Las 23 historias del MVP, todas con sus criterios de aceptación completos, est�
 
 ## 6. Tickets de Trabajo
 
-> Documenta 3 de los tickets de trabajo principales del desarrollo, uno de backend, uno de frontend, y uno de bases de datos. Da todo el detalle requerido para desarrollar la tarea de inicio a fin teniendo en cuenta las buenas prácticas al respecto.
+Los tres tickets salen del backlog del MVP ([`docs/backlog/backlog-mvp.md`](docs/backlog/backlog-mvp.md)), que tiene 26 tickets ligeros en las cinco primeras historias. Son la versión detallada de tres de ellos, elegidos porque concentran las reglas centrales del primer flujo de registro: las tablas sobre las que se registra y se consulta, el guardado de la entrada del día y el editor del Diario. Conservan el ID provisional y el título del backlog; los criterios de aceptación completos viven en su historia. Todo el diseño que citan sale de [`docs/arquitectura.md`](docs/arquitectura.md), [`docs/modelo-de-datos.md`](docs/modelo-de-datos.md), [`docs/api/openapi.yaml`](docs/api/openapi.yaml) y los ADR; lo que esos documentos no fijan aparece como **pendiente**.
 
-**Ticket 1**
+Definition of Done común a los tres (además del suyo): tests escritos primero y vistos fallar (TDD); `domain/` y `application/` sin `@nestjs/*` ni `@prisma/client`; errores con el código estable de `openapi.yaml`; la operación nueva añadida a los tests de `401` y de aislamiento entre `demo` y `demo2`; ESLint y Prettier sin errores; Conventional Commits; ningún secreto en el repositorio; trabajo dentro del cambio de OpenSpec de su historia.
 
-**Ticket 2**
+**Ticket 1 — Base de datos · [E4-1.1 · Tablas de tareas, competencias y entradas](docs/backlog/E4-seguimiento-de-tareas/us-lista-de-tareas.md#e4-11--tablas-de-tareas-competencias-y-entradas)**
 
-**Ticket 3**
+| Campo      | Valor                                                                                                                                                          |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Historia   | [E4-1 · Ver todas mis tareas, con lo más reciente arriba](docs/backlog/E4-seguimiento-de-tareas/us-lista-de-tareas.md) (F3); también la usan E2-1, E3-1 y E5-1 |
+| Requisitos | RF-3, RF-10, RF-11, RF-20, RF-24, RF-25 · RNF-6 · DM-1, DM-3, DM-5, DM-6, DM-7                                                                                 |
+| Depende de | E1-1.2 (Prisma, PostgreSQL local, `app_user` y base de tests de integración), E1-1.3 (_seed_), E5-1.1 (tabla `objective`)                                      |
+| Bloquea a  | E4-1.2 (lista de tareas), E5-1.3 (contadores de objetivos), E2-1.1 (secuencia de ID) y todo el registro diario                                                 |
+| Talla      | M · riesgo medio (las restricciones son la red de seguridad de las reglas de integridad)                                                                       |
+
+_Contexto y objetivo._ La lista de tareas (RF-20) calcula la última actividad y el número de entradas de cada tarea a partir de las entradas, y el registro diario escribe tareas, competencias, entradas y elementos. Este ticket crea esas cinco tablas y su tipo enumerado en una migración propia, siguiendo el reparto de migraciones por historia (acceso en E1-1.2, objetivos en E5-1.1, esta, y la secuencia de ID en E2-1.1). Las restricciones hacen que las reglas se cumplan "por cualquier camino" (RNF-6), aunque fallara el código.
+
+_Alcance._
+
+- **Incluido:** enum `task_status`; tablas `task`, `skill`, `task_skill`, `entry` y `entry_item` con sus claves, foráneas, `UNIQUE`, índices y los `CHECK` de esas tablas; ampliación del _seed_ con tareas y entradas ficticias mínimas para `demo` y `demo2`.
+- **Excluido:** `task_code_sequence` (E2-1.1), `objective` (E5-1.1), `app_user` y `session` (E1-1.2); repositorios y conversión de fechas en los adaptadores (E4-1.2, E2-1.3); los datos semilla del informe (P-2, historias de E6).
+
+_Diseño técnico_ ([modelo de datos](docs/modelo-de-datos.md) §3.1, §3.5–§3.9, §4, §5 y §8). Nombres físicos en `snake_case`; modelos Prisma en `PascalCase` con `@@map`/`@map`, exactamente como en el `schema.prisma` del §4.
+
+| Tabla        | Columnas (tipo · nulo · por defecto)                                                                                                                                                                                                                                                                                                              | Claves y restricciones                                                                                                                                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `task`       | `id uuid` PK `gen_random_uuid()` · `user_id uuid` · `number integer` · `title varchar(200)` · `status task_status` `DEFAULT 'IN_PROGRESS'` · `completed_on date NULL` · `objective_id uuid NULL` · `outcome varchar(4000) NULL` · `evidence varchar(4000) NULL` · `is_achievement boolean DEFAULT false` · `created_at`, `updated_at timestamptz` | FK `user_id` → `app_user` `RESTRICT`; FK `objective_id` → `objective.id` `RESTRICT` (una sola columna, DM-5); `UNIQUE (user_id, number)`; `UNIQUE (id, user_id)`; `CHECK` estado ⇔ fecha, número positivo, título no vacío |
+| `skill`      | `id uuid` PK · `user_id uuid` · `name varchar(60)` · `name_key varchar(60)` · `created_at timestamptz`                                                                                                                                                                                                                                            | FK `user_id` → `app_user` `RESTRICT`; `UNIQUE (user_id, name_key)` (DM-3); `UNIQUE (id, user_id)`; `CHECK` nombre no vacío y `name_key` normalizada                                                                        |
+| `task_skill` | `task_id uuid` · `skill_id uuid` · `user_id uuid` · `position integer`                                                                                                                                                                                                                                                                            | PK `(task_id, skill_id)`; FK `(task_id, user_id)` → `task (id, user_id)` `CASCADE`; FK `(skill_id, user_id)` → `skill (id, user_id)` `RESTRICT`; `CHECK (position >= 0)`                                                   |
+| `entry`      | `id uuid` PK · `user_id uuid` · `entry_date date` · `created_at`, `updated_at timestamptz`                                                                                                                                                                                                                                                        | FK `user_id` → `app_user` `RESTRICT`; `UNIQUE (user_id, entry_date)` (RF-10); `UNIQUE (id, user_id)`                                                                                                                       |
+| `entry_item` | `id uuid` PK · `entry_id`, `task_id`, `user_id uuid` · `position integer` · `note text DEFAULT ''` · `status task_status` · `changed_objective`, `changed_skills`, `changed_outcome`, `changed_evidence`, `changed_achievement boolean DEFAULT false`                                                                                             | FK `(entry_id, user_id)` → `entry (id, user_id)` `CASCADE`; FK `(task_id, user_id)` → `task (id, user_id)` `RESTRICT` (RF-25); `UNIQUE (entry_id, task_id)` (RF-11); `CHECK (position >= 0)`                               |
+
+Todas las columnas son `NOT NULL` salvo las marcadas `NULL`. `entry_item` guarda solo las marcas `changed_*`, no los valores de detalle (DM-1). Índices además de los que crean las claves: `task (user_id, completed_on)`, `task (objective_id)`, `task_skill (skill_id)` y `entry_item (task_id)` (§8).
+
+`CHECK` que Prisma no expresa, añadidos a mano al final de la migración (§5): `task_completed_on_iff_completed`, `task_number_positive`, `task_title_not_blank`, `skill_name_not_blank`, `skill_name_key_normalized`, `task_skill_position_non_negative` y `entry_item_position_non_negative`. No se añade `CHECK (name_key = lower(name_key))`: la clave la calcula el dominio (DM-3).
+
+_Pasos._
+
+1. Escribir los tests de integración de la tabla de abajo y verlos fallar.
+2. Añadir a `apps/api/prisma/schema.prisma` el enum `TaskStatus` y los modelos `Task`, `Skill`, `TaskSkill`, `Entry` y `EntryItem`, con sus relaciones inversas en `AppUser` y `Objective`, tal como en el §4.
+3. Generar la migración con `prisma migrate dev --create-only --name add_tasks_skills_entries`, añadir al final el SQL de los siete `CHECK` y aplicarla. Las migraciones se nombran en `snake_case` por su contenido (Prisma antepone la marca de tiempo).
+4. Comprobar que `prisma migrate deploy` la aplica desde cero en el entorno de `docker compose` y que `schema.prisma` no presenta deriva respecto a la base.
+5. Ampliar `prisma/seed.ts` con tareas y entradas ficticias mínimas para las dos usuarias: UUID fijos, `upsert` por `id`, por `(user_id, number)` en tareas y por `(user_id, name_key)` en competencias (§9). Contenido (decisión de la propietaria, siempre ficticio, RNF-7): para `demo`, unas 5 tareas que cubran los tres estados con al menos un logro, 2-3 competencias y 3-4 entradas en fechas distintas; para `demo2`, 1-2 tareas y 1 entrada, solo para probar el aislamiento.
+
+_Plan de TDD_ (integración con Jest contra PostgreSQL real, con la base aislada de E1-1.2; cada test intenta guardar la fila que debe rechazarse):
+
+| Tabla        | Tests que se escriben primero                                                                                                                                                                                                                             |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `task`       | Número repetido para la misma usuaria rechazado (y aceptado para la otra); número `0`; título en blanco; título de 201 caracteres; `COMPLETED` sin `completed_on` y `IN_PROGRESS` con `completed_on`; objetivo inexistente; borrar un objetivo con tareas |
+| `skill`      | `name_key` repetido para la misma usuaria rechazado (y aceptado para la otra); nombre en blanco; `name_key` vacía o con espacios al principio o al final                                                                                                  |
+| `task_skill` | Par `(task_id, skill_id)` repetido; `position` negativa; competencia de la otra usuaria; borrar una tarea borra sus filas; borrar una competencia en uso se rechaza                                                                                       |
+| `entry`      | Misma fecha dos veces para la misma usuaria rechazada (y aceptada para la otra)                                                                                                                                                                           |
+| `entry_item` | Misma tarea dos veces en una entrada; `position` negativa; tarea de la otra usuaria (foránea compuesta, RF-3); borrar una tarea mencionada se rechaza (RF-25); borrar una entrada borra sus elementos                                                     |
+| _Seed_       | Ejecutarlo dos veces deja exactamente las mismas filas                                                                                                                                                                                                    |
+
+_Criterios de aceptación._ Todos los tests anteriores pasan; la migración se aplica desde cero sin errores y sin deriva; el _seed_ sigue siendo idempotente; ninguna tabla nueva permite enlazar registros de dos usuarias; los criterios 2, 6 y 9 de E4-1 tienen en la base los datos que necesitan (se comprueban en E4-1.2).
+
+_Seguridad (OWASP, ADR-0002)._ **A01:** claves foráneas compuestas `(x_id, user_id)` y `user_id` en todas las tablas, para que el aislamiento no dependa solo del código. **A04:** límites de longitud de DM-7 en las columnas. **A03:** el SQL de la migración es estático; no hay entrada de la usuaria.
+
+_Definition of Done._ El DoD común; migración y SQL complementario versionados en `apps/api/prisma/migrations/`; tests de restricciones en la suite de integración; _seed_ idempotente y solo con datos ficticios.
+
+**Ticket 2 — Backend · [E2-1.4 · Guardar la entrada del día en la API](docs/backlog/E2-registro-diario/us-registrar-entrada-del-dia.md#e2-14--guardar-la-entrada-del-día-en-la-api)**
+
+| Campo      | Valor                                                                                                                                                                                                                        |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Historia   | [E2-1 · Registrar el trabajo del día desde un solo formulario](docs/backlog/E2-registro-diario/us-registrar-entrada-del-dia.md) (F1); hereda los criterios 2, 3, 6, 8, 9, 11, 14 y 15 en su parte de servidor                |
+| Requisitos | RF-7, RF-8, RF-11, RF-12 (solo la entrada más reciente), RF-13 (normalización mínima), RF-15, RF-24 · RNF-4, RNF-5 · D-3, D-5, D-6, D-8                                                                                      |
+| Depende de | E2-1.3 (`UnitOfWork`, `TaskCodeSequence` y repositorios de escritura), E2-1.2 (reglas de dominio y esquema zod), E5-1.2 (`CalendarDate` e interceptor de `X-Client-Date`), E1-1.5 (`SessionGuard`), E4-1.1 y E2-1.1 (tablas) |
+| Bloquea a  | E2-1.5 (guardado en el cliente), E3-1.1 (historial), E2-2, E2-3                                                                                                                                                              |
+| Talla      | L · riesgo alto (concentra la integridad del registro)                                                                                                                                                                       |
+
+_Contexto y objetivo._ Es la operación central del producto: guardar en una sola petición la entrada de una fecha, con sus elementos, y crear sobre la marcha las tareas y los objetivos nuevos (RNF-1). Debe aplicarse entera o no aplicarse (RNF-5) y asignar a cada tarea nueva el siguiente ID de la usuaria sin duplicados (RF-15).
+
+_Alcance._
+
+- **Incluido:** caso de uso `SaveDailyEntry`; `PUT /api/entries/{date}` en `EntriesController` (`EntriesModule`); validación con zod; traducción de errores; respuesta `Entry`.
+- **Excluido:** la fusión en una fecha que ya tiene entrada ([E2-2](docs/backlog/E2-registro-diario/us-fusionar-entrada-misma-fecha.md)), la protección dato a dato por entradas posteriores ([E2-3](docs/backlog/E2-registro-diario/us-rellenar-fechas-pasadas.md)), las sugerencias de competencias ([E2-4](docs/backlog/E2-registro-diario/us-competencias-normalizadas.md)) y la edición o eliminación (E2-5). Qué devuelve este ticket si la fecha ya tiene entrada no se especifica ni se prueba hasta E2-2 (**pendiente** por diseño del orden).
+
+_Contrato_ ([`openapi.yaml`](docs/api/openapi.yaml), `saveDailyEntry`):
+
+- **Petición:** `PUT /api/entries/{date}` con `date` como `CalendarDate` (`AAAA-MM-DD`), cabecera `X-Client-Date` obligatoria, cookie de sesión `sid` y cuerpo `SaveEntryRequest`.
+- **Cuerpo:** `items` (1 a 50) de `EntryItemInput`, todos con `additionalProperties: false`:
+  - `task`: `{ code }` o `{ title }`, con título de 1 a 200 caracteres no vacío tras recortar;
+  - `note`: hasta 4000 caracteres, por defecto `""`;
+  - `status`: `IN_PROGRESS`, `PAUSED` o `COMPLETED`;
+  - opcionales: `isAchievement`; `objective` (`null`, `{ id }` o `{ title }`); `skills` (hasta 20 nombres de 1 a 60); `outcome` y `evidence` (hasta 4000 o `null`).
+  - Un campo de detalle ausente no se toca.
+- **Respuesta `200`:** la `Entry` guardada, con sus elementos en orden de guardado y, en cada uno, los valores actuales de la tarea (`TaskRef`). Ejemplo completo en la [sección 4](#4-especificación-de-la-api).
+
+| HTTP | `code`                    | Cuándo                                                                                         | Dónde se decide                           |
+| ---- | ------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| 400  | `VALIDATION_FAILED`       | Cuerpo, ruta o tipos fuera del esquema (incluidos campos desconocidos y títulos vacíos)        | `ZodValidationPipe`                       |
+| 400  | `CLIENT_DATE_INVALID`     | `X-Client-Date` ausente, mal formada o a más de ±1 día de la fecha UTC del servidor            | Interceptor de E5-1.2                     |
+| 401  | `UNAUTHENTICATED`         | Sin sesión válida                                                                              | `SessionGuard`                            |
+| 404  | `NOT_FOUND`               | `task.code` u `objective.id` inexistente o de la otra usuaria (D-8)                            | Caso de uso                               |
+| 409  | `TASK_CODE_CONFLICT`      | La asignación de ID sigue en conflicto tras 2 reintentos (3 intentos en total)                 | `UnitOfWork` / caso de uso (E2-1.3)       |
+| 413  | `PAYLOAD_TOO_LARGE`       | Cuerpo de más de 100 kB                                                                        | Configuración de E1-1.1                   |
+| 415  | `UNSUPPORTED_MEDIA_TYPE`  | Cuerpo que no es `application/json`                                                            | Configuración de E1-1.1                   |
+| 422  | `ENTRY_DATE_IN_FUTURE`    | `date` posterior a `X-Client-Date` (RF-7)                                                      | Caso de uso, antes de la transacción      |
+| 422  | `DUPLICATE_TASK_IN_ENTRY` | La misma tarea dos veces en `items` (RF-11); `details` con la ruta, p. ej. `items.1.task.code` | Dominio (E2-1.2), antes de la transacción |
+| 500  | `INTERNAL_ERROR`          | Fallo inesperado; no queda nada guardado                                                       | `DomainErrorFilter`                       |
+
+_Diseño técnico_ ([arquitectura](docs/arquitectura.md) §5.1–§5.4 y §5.6; [modelo de datos](docs/modelo-de-datos.md) §7.1):
+
+- **Capas.**
+  - **Interfaz:** `EntriesController` es fino. Toma `userId` solo de la sesión, recibe `today` como `CalendarDate` del interceptor y el DTO validado, llama a `SaveDailyEntry.execute(userId, today, date, dto)` y devuelve el resultado. `DomainErrorFilter` traduce los errores de dominio a la tabla anterior.
+  - **Aplicación:** `SaveDailyEntry` es TypeScript puro, sin decoradores, construido con `useFactory`. Depende de los puertos `EntryRepository`, `TaskRepository`, `ObjectiveRepository`, `SkillRepository`, `TaskCodeSequence` y `UnitOfWork`.
+  - **Infraestructura:** adaptadores Prisma de E2-1.3.
+- **Antes de la transacción:** se rechaza `date > today` y cualquier tarea repetida en el formulario.
+- **Dentro de `UnitOfWork.run`** (una transacción `READ COMMITTED`), en este orden:
+  1. Crear los objetivos nuevos (solo título) y las tareas nuevas, obteniendo cada número con `UPDATE task_code_sequence … RETURNING`. Cada `{ title }` crea uno.
+  2. Obtener o crear la entrada de la fecha con `INSERT … ON CONFLICT DO NOTHING` y `SELECT … FOR UPDATE`.
+  3. Bloquear las tareas afectadas en orden de `id` y leer si alguna entrada posterior a `date` las menciona.
+  4. Aplicar cada elemento a su tarea solo si ninguna entrada posterior la menciona: estado; `completed_on` igual a `date` si es `COMPLETED` y `NULL` si no; y los campos de detalle presentes. La invariante de `Task` (RF-24) se comprueba antes de persistir.
+  5. Normalizar competencias con `SkillNormalizer`: `INSERT … ON CONFLICT (user_id, name_key) DO NOTHING` seguido de `SELECT`, `task_skill.position` en el orden de entrada, y borrado de las competencias que se queden sin uso (DM-4).
+  6. Insertar los `entry_item` con `position` 0, 1, 2…
+  7. `COMMIT`. Cualquier fallo, incluido un `CHECK`, deshace todo.
+- **Marcas `changed_*` de cada elemento** (DM-1). Se calculan y guardan ya en este ticket (decisión de la propietaria), comparando el valor del elemento con el de la tarea (modelo de datos §3.9), para que las entradas guardadas antes de E2-3 tengan marcas correctas. E2-3 añade la protección que las lee.
+- **Respuesta:** se arma después del `COMMIT` con los valores actuales de las tareas, sin exponer UUID internos de entradas, tareas ni competencias (DM-2).
+
+_Plan de TDD._
+
+| Nivel                                             | Tests que se escriben primero                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unitario del caso de uso (dobles en memoria)      | Con hoy = 2026-11-22, `date` 2026-11-23 → `ENTRY_DATE_IN_FUTURE` y ningún puerto de escritura llamado; 2026-11-22 → guardado. T-001 dos veces → `DUPLICATE_TASK_IN_ENTRY` con T-001 en el error. Tarea u objetivo no encontrados → `NOT_FOUND`. Tarea nueva → se pide un número a `TaskCodeSequence`. T-009 `COMPLETED` en una entrada del 2026-06-03 guardada el 2026-06-10 → `completedOn` 2026-06-03 |
+| Contrato HTTP (Jest + supertest, PostgreSQL real) | Ejemplo de petición y respuesta del contrato → `200` con esa forma. Sin sesión → `401`. Campo desconocido, `status` inválido o "Nueva tarea…" sin título → `400 VALIDATION_FAILED`. `X-Client-Date` ausente o a ±2 días → `400 CLIENT_DATE_INVALID`. Fecha futura → `422`. Tarea repetida → `422` con `details`. Más de 100 kB → `413`. `text/plain` → `415`                                            |
+| Integración (PostgreSQL real)                     | Con T-001 a T-004 sembradas, la tarea nueva recibe T-005. Dos `PUT` simultáneos con tareas nuevas reciben ID distintos. Un fallo forzado en el tercer elemento deja la base igual que antes (criterio 11). Con `TZ=America/Los_Angeles`, una entrada del 2026-11-22 se guarda y se devuelve como 2026-11-22 (criterio 14)                                                                               |
+| Aislamiento                                       | Con la sesión de `demo2`, referenciar una tarea o un objetivo de `demo` → `404` y nada guardado; la operación se añade al test de `401` de todas las rutas                                                                                                                                                                                                                                              |
+
+El tiempo de respuesta de 1 s del criterio 11 (RNF-2) se mide en el E2E de E2-1.8, no aquí.
+
+_Criterios de aceptación._ Los criterios 2, 3, 6, 8, 9, 11, 14 y 15 de [E2-1](docs/backlog/E2-registro-diario/us-registrar-entrada-del-dia.md) se cumplen en el servidor, probados por los tests anteriores. La respuesta valida contra el esquema `Entry` de `openapi.yaml`. Ningún camino de error deja datos a medio guardar.
+
+_Seguridad (OWASP, ADR-0002)._
+
+- **A01:** `userId` solo de la sesión; todas las consultas filtran por él; un recurso ajeno responde `404`, igual que uno inexistente.
+- **A03:** validación zod; Prisma parametriza; el SQL crudo de la secuencia y de los bloqueos va siempre con parámetros.
+- **A04:** `additionalProperties: false` contra la asignación masiva; límites de longitud y de número de elementos.
+- **A05:** sin trazas en las respuestas de error.
+- **CSRF:** mismo origen, `SameSite=Strict` y `Content-Type: application/json` obligatorio.
+
+_Definition of Done._ El DoD común. `openapi.yaml` y el esquema zod coinciden; si alguno cambia, los dos se actualizan en el mismo cambio. La operación figura en los tests de `401` y de aislamiento. No hay reglas de negocio en el controlador. La regla de límites de importación pasa.
+
+**Ticket 3 — Frontend · [E2-1.6 · Editor: fecha y elementos](docs/backlog/E2-registro-diario/us-registrar-entrada-del-dia.md#e2-16--editor-fecha-y-elementos)**
+
+| Campo      | Valor                                                                                                                                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Historia   | [E2-1 · Registrar el trabajo del día desde un solo formulario](docs/backlog/E2-registro-diario/us-registrar-entrada-del-dia.md) (F1); hereda los criterios 1, 3, 4, 7, 11 y 13 en su parte de interfaz |
+| Requisitos | RF-5, RF-7, RF-8, RF-9 (selector de tarea) · RNF-1, RNF-4, RNF-10, RNF-11 · D-7                                                                                                                        |
+| Depende de | E2-1.5 (estado del formulario y mutación de guardado), E4-1.3 (consulta de tareas), E5-1.4 (`ToastHost` y cliente HTTP con `X-Client-Date`), E1-1.7 (`AppShell` y pestaña Diario)                      |
+| Bloquea a  | E2-1.7 (detalles de la tarea), E2-1.8 (E2E), E3-1.3 (historial bajo el editor)                                                                                                                         |
+| Talla      | L · riesgo medio                                                                                                                                                                                       |
+
+_Contexto y objetivo._ El registro del día se hace desde un solo formulario en la pestaña Diario, sin pasar por otras pestañas (RNF-1). Este ticket construye ese formulario: la fecha, la lista de elementos y, en cada elemento, la tarea, la nota, el estado y la marca de logro. El cliente no replica reglas de negocio: envía, muestra el resultado y vuelve a leer (D-7).
+
+_Alcance._
+
+- **Incluido:** `EntryEditor` en `features/diary` con su selector de fecha, la lista de `EntryItemForm` y, en cada uno, `TaskSelect` agrupado con "Nueva tarea…", título de la tarea nueva, nota, estado y casilla de logro; las acciones "+ Añadir otra tarea", "Quitar" y "Guardar entrada"; los mensajes de éxito y de error.
+- **Excluido:** la sección plegable "Detalles de la tarea" y "+ Nuevo objetivo…" (E2-1.7); las sugerencias de competencias (E2-4); "Cancelar" y la carga de una entrada para editarla (E2-5); el listado bajo el editor (E3-1.3); las funciones puras del formulario y la mutación (E2-1.5, que este ticket usa).
+
+_Diseño técnico_ ([arquitectura](docs/arquitectura.md) §6.1 y §6.2; [interfaz](docs/modelo/interfaz.md), "Editor de entradas"):
+
+| Pieza                    | Comportamiento                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Selector de fecha        | Valor inicial: la fecha local del navegador (`CalendarDate`, nunca con conversión a UTC); máximo, hoy. La fecha futura que llegue al servidor vuelve como `ENTRY_DATE_IN_FUTURE` y se muestra con el mensaje de error                                                                                                                                                    |
+| Lista de elementos       | Empieza con uno. "+ Añadir otra tarea" añade otro; "Quitar" solo aparece cuando hay más de uno. El estado vive en las funciones puras de E2-1.5                                                                                                                                                                                                                          |
+| `TaskSelect`             | Opción "Nueva tarea…" y las tareas de la consulta `tasks` (`GET /api/tasks`, E4-1.3) agrupadas en "En curso y en pausa" (`IN_PROGRESS`, `PAUSED`) y "Completadas" (`COMPLETED`), con su ID y su título. Dentro de cada grupo, en el orden que devuelve el servidor (RF-20)                                                                                               |
+| Título de la tarea nueva | Solo con "Nueva tarea…"; obligatorio y marcado como tal de forma accesible. Un título vacío lo rechaza el servidor (`VALIDATION_FAILED`) y se muestra como error sin guardar nada                                                                                                                                                                                        |
+| Nota                     | Texto opcional                                                                                                                                                                                                                                                                                                                                                           |
+| Estado                   | `En curso`, `En pausa`, `Completada` (valores `IN_PROGRESS`, `PAUSED`, `COMPLETED`). Por defecto, `En curso` en una tarea nueva y el estado actual en una existente                                                                                                                                                                                                      |
+| Casilla de logro         | "Marcar como logro"; desactivada en una tarea nueva y, en una existente, con el valor actual de la tarea, para no marcarla como cambiada sin querer (RF-12)                                                                                                                                                                                                              |
+| Guardar entrada          | Lanza la mutación de E2-1.5 (`PUT /api/entries/{date}` con `X-Client-Date`). Mientras está en curso, no se puede volver a enviar. Al terminar se invalidan las consultas `entries`, `tasks`, `objectives` y `summary`                                                                                                                                                    |
+| Mensajes                 | Con el `ToastHost` de E5-1.4: "Entrada guardada" si va bien; un mensaje que empieza por "No se pudo guardar" si falla, con el texto que asigna E2-1.5 a cada código de error. El de tarea repetida identifica la tarea. Si falla, el formulario conserva lo escrito. Si va bien, el formulario se vacía y queda con un único elemento vacío, listo para seguir añadiendo |
+
+Textos de la interfaz en español (RNF-10). Ningún contenido de la usuaria se pinta como HTML.
+
+_Plan de TDD_ (Vitest + React Testing Library, con la API simulada con MSW, que intercepta las peticiones HTTP para que el cliente real, con su manejo de `401` y `X-Client-Date`, también se pruebe):
+
+| Criterio de E2-1 | Test que se escribe primero                                                                                                                                                                                                               |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1                | Con el reloj simulado, la fecha inicial es la local y hay un elemento sin "Quitar"; tras "+ Añadir otra tarea" hay dos y los dos muestran "Quitar"                                                                                        |
+| 3                | "Nueva tarea…" sin título y guardar → la API responde `VALIDATION_FAILED`, se muestra un error que empieza por "No se pudo guardar" y lo escrito se conserva; un elemento sin nota se envía y se guarda                                   |
+| 4                | Una tarea nueva propone `En curso` y la casilla de logro desactivada; elegir T-003 `En pausa` (ya marcada como logro) propone `En pausa` y la casilla activada; la casilla se puede cambiar                                               |
+| 7                | Con tareas en los tres estados, el selector muestra los grupos "En curso y en pausa" y "Completadas" con las tareas que les corresponden, en el orden en que las devuelve la API                                                          |
+| 11               | Respuesta `200` → "Entrada guardada" y el formulario queda con un único elemento vacío; respuesta de error → mensaje que empieza por "No se pudo guardar" y el formulario intacto; mientras se guarda, el botón no lanza un segundo envío |
+| 13               | Con `user-event`, solo con teclado: elegir la fecha, añadir un elemento, elegir tarea y estado, escribir la nota y guardar; todos los controles tienen etiqueta accesible                                                                 |
+
+El tiempo de 1 s, el recorrido completo sin cambiar de pestaña y la zona horaria no UTC con navegador real se comprueban en el E2E de E2-1.8.
+
+_Criterios de aceptación._ Los criterios 1, 3, 4, 7, 11 y 13 de [E2-1](docs/backlog/E2-registro-diario/us-registrar-entrada-del-dia.md) se cumplen en la interfaz, probados por los tests anteriores. El componente no reordena ni filtra tareas por su cuenta más allá de agruparlas por estado, y no valida reglas de negocio que ya decide el servidor.
+
+_Seguridad (OWASP, ADR-0002)._
+
+- **A03 (XSS):** títulos y notas se pintan como texto, sin `dangerouslySetInnerHTML`.
+- **A01:** el cliente nunca envía `userId`.
+- **CSRF:** el cliente HTTP envía siempre `Content-Type: application/json` al mismo origen.
+- **A05:** ningún secreto en el bundle.
+- **A07:** un `401` durante el guardado devuelve a la pantalla de acceso (E1-1.6).
+
+_Definition of Done._ El DoD común; tests de componentes de los seis criterios en la suite de Vitest; formulario usable solo con teclado; sin lógica de negocio en los componentes (la del formulario vive en las funciones puras de E2-1.5).
 
 ---
 

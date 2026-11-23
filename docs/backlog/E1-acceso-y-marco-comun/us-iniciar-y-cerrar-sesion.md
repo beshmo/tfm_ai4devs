@@ -63,7 +63,7 @@ Esta historia, por ser la primera del orden, carga con el esqueleto del monorepo
 
 - **Capa:** base de datos.
 - **Origen:** RF-1, RF-3 · [modelo de datos](../../modelo-de-datos.md) §3.2, §3.10, §4 y DM-8.
-- **Entrega:** Prisma en `apps/api`; servicio `postgres` en `deploy/compose/`; primera migración con `app_user` y `session`; `.env.example` con las variables vacías (RNF-12); base de tests de integración contra PostgreSQL real, con una base aislada y limpieza entre tests.
+- **Entrega:** Prisma en `apps/api`; servicio `postgres` en `deploy/compose/`; primera migración, `add_auth`, con `app_user` y `session` (las migraciones se nombran en `snake_case` por su contenido; Prisma antepone la marca de tiempo); `.env.example` con las variables vacías (RNF-12); base de tests de integración contra PostgreSQL real, con una base aislada y limpieza entre tests.
 - **DoD específico:**
   - El test de integración que comprueba que `username` repetido se rechaza se escribe antes que la migración.
   - La migración se aplica desde cero con `prisma migrate deploy` y `schema.prisma` no presenta deriva respecto a la base.

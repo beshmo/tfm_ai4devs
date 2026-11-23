@@ -51,7 +51,7 @@ Es la primera historia con contenido en una pestaña, así que carga con el inte
 
 - **Capa:** base de datos.
 - **Origen:** RF-27, RF-3 · [modelo de datos](../../modelo-de-datos.md) §3.4, §4, §5, §8.
-- **Entrega:** migración propia con la tabla `objective` (título no vacío, `UNIQUE (id, user_id)` para las foráneas compuestas, índice por usuaria), coherente con el reparto de migraciones por historia; el _seed_ añade objetivos ficticios mínimos para las dos usuarias.
+- **Entrega:** migración propia `add_objectives` con la tabla `objective` (título no vacío, `UNIQUE (id, user_id)` para las foráneas compuestas, índice por usuaria), coherente con el reparto de migraciones por historia; el _seed_ añade objetivos ficticios mínimos para las dos usuarias.
 - **DoD específico:**
   - Tests de integración escritos antes: un título en blanco se rechaza; el _seed_ sigue siendo idempotente.
 
