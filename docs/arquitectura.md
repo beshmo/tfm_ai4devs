@@ -3,7 +3,7 @@
 > **Estado:** Aceptada · **Fecha:** 2026-11-23
 > **Base:** [PRD del MVP](./prd/mvp.md), [ADR-0001 — Stack tecnológico](./adr/0001-stack-tecnologico.md), [ADR-0002 — Prácticas de ingeniería](./adr/0002-practicas-de-ingenieria.md), [modelo de dominio](./modelo/dominio.md), [interfaz](./modelo/interfaz.md) e [informe de referencia](./modelo/informe.md).
 > **Qué hay aquí:** la arquitectura del sistema, sus componentes principales, cómo se reparten las reglas del PRD entre ellos y cómo se despliega. El stack ya está decidido en ADR-0001 y no se vuelve a discutir; lo que este documento añade y no está en los ADR se recoge en la sección 11 (decisiones D-1 a D-8, revisadas y aprobadas).
-> **Qué no hay aquí:** el modelo de datos detallado (columnas, tipos, migraciones) ni la especificación completa de la API (cuerpos, códigos de error por endpoint). Aquí solo aparecen al nivel necesario para entender los componentes.
+> **Qué no hay aquí:** el modelo de datos detallado (columnas, tipos, migraciones), que está en [modelo-de-datos.md](./modelo-de-datos.md), ni la especificación completa de la API (cuerpos, códigos de error por endpoint). Aquí solo aparecen al nivel necesario para entender los componentes.
 
 ---
 
@@ -337,7 +337,7 @@ erDiagram
 - `entry_item`: `UNIQUE (entry_id, task_id)` — una tarea por entrada (RF-11); guarda posición, nota, estado y los valores/`changedFields` de RF-12.
 - `task`: `UNIQUE (user_id, number)` (RF-15); `CHECK ((status = 'COMPLETED') = (completed_on IS NOT NULL))` (RF-24) como red de seguridad de la regla de dominio.
 - Borrado de tarea u objetivo con `ON DELETE RESTRICT` además de la comprobación del caso de uso (RF-25, RF-30), para que la regla se cumpla "por cualquier camino" (RNF-6).
-- `skill`: `UNIQUE (user_id, lower(name))` — normalización sin distinguir mayúsculas (RF-13).
+- `skill`: `UNIQUE (user_id, lower(name))` — normalización sin distinguir mayúsculas (RF-13). En el esquema físico se implementa con una columna `name_key` calculada por el dominio (decisión DM-3 de [modelo-de-datos.md](./modelo-de-datos.md)).
 - Índices por `(user_id, entry_date)` y `(task_id)` en `entry_item`, suficientes para la escala de RNF-3.
 - El _seed_ (`prisma/seed.ts`) es **idempotente** (_upsert_ por claves naturales): permite regenerar los datos si se pierde el volumen en Kubernetes (ADR-0001).
 
