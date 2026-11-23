@@ -622,7 +622,7 @@ _Contexto y objetivo._ Es la operación central del producto: guardar en una sol
 _Alcance._
 
 - **Incluido:** caso de uso `SaveDailyEntry`; `PUT /api/entries/{date}` en `EntriesController` (`EntriesModule`); validación con zod; traducción de errores; respuesta `Entry`.
-- **Excluido:** la fusión en una fecha que ya tiene entrada ([E2-2](docs/backlog/E2-registro-diario/us-fusionar-entrada-misma-fecha.md)), la protección dato a dato por entradas posteriores ([E2-3](docs/backlog/E2-registro-diario/us-rellenar-fechas-pasadas.md)), las sugerencias de competencias ([E2-4](docs/backlog/E2-registro-diario/us-competencias-normalizadas.md)) y la edición o eliminación (E2-5). Qué devuelve este ticket si la fecha ya tiene entrada no se especifica ni se prueba hasta E2-2 (**pendiente** por diseño del orden).
+- **Excluido:** la fusión en una fecha que ya tiene entrada ([E2-2](docs/backlog/E2-registro-diario/us-fusionar-entrada-misma-fecha.md)), la protección dato a dato por entradas posteriores ([E2-3](docs/backlog/E2-registro-diario/us-rellenar-fechas-pasadas.md)), las sugerencias de competencias ([E2-4](docs/backlog/E2-registro-diario/us-competencias-normalizadas.md)) y la edición o eliminación (E2-5). Este ticket no devuelve ningún error propio para una fecha que ya tiene entrada: el contrato define la fusión y E2-2 la implementa. Para que ese hueco nunca llegue a `main`, **E2-1 y E2-2 se entregan juntas** (decisión de la propietaria): E2-1 no se integra sin E2-2, y los tests de este ticket usan solo fechas sin entrada.
 
 _Contrato_ ([`openapi.yaml`](docs/api/openapi.yaml), `saveDailyEntry`):
 

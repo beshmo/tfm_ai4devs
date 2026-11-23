@@ -94,7 +94,7 @@ Esta historia carga con la base de los tests E2E (P-5). Las tablas que escribe (
 
 - **Capa:** backend (aplicación e interfaz).
 - **Origen:** RF-7, RF-8, RF-11, RF-15, RNF-5 · D-3 · [`openapi.yaml`](../../api/openapi.yaml) `saveDailyEntry` · [arquitectura](../../arquitectura.md) §5.4, §5.6.
-- **Entrega:** caso de uso `SaveDailyEntry` en una sola transacción (objetivos y tareas nuevos, entrada y elementos); `PUT /api/entries/{date}` con validación zod y con el interceptor de `X-Client-Date` que ya existe desde E5-1.2; traducción de errores a `400`, `404`, `409` y `422` con los códigos del contrato. El guardado en una fecha que ya tiene entrada queda fuera: lo cierra [E2-2](./us-fusionar-entrada-misma-fecha.md).
+- **Entrega:** caso de uso `SaveDailyEntry` en una sola transacción (objetivos y tareas nuevos, entrada y elementos); `PUT /api/entries/{date}` con validación zod y con el interceptor de `X-Client-Date` que ya existe desde E5-1.2; traducción de errores a `400`, `404`, `409` y `422` con los códigos del contrato. El guardado en una fecha que ya tiene entrada queda fuera: lo cierra [E2-2](./us-fusionar-entrada-misma-fecha.md), sin error temporal (el contrato define la fusión). E2-1 y E2-2 se entregan juntas: E2-1 no se integra en `main` sin E2-2.
 - **DoD específico:**
   - Tests de contrato escritos antes, uno por criterio heredado, incluido el ejemplo de petición y respuesta del contrato.
   - La operación se añade al test de `401` y al de aislamiento de [E1-1](../E1-acceso-y-marco-comun/us-iniciar-y-cerrar-sesion.md): referenciar una tarea o un objetivo de la otra usuaria responde `404` y no guarda nada.

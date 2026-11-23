@@ -1,13 +1,13 @@
 # E2-2 · Volver a guardar en un día que ya tiene entrada
 
-| Campo            | Valor                                              |
-| ---------------- | -------------------------------------------------- |
-| ID               | `E2-2` (etiqueta provisional, **pendiente de ID**) |
-| Épica            | E2 · Registro diario                               |
-| Funcionalidad    | F1 · Registro diario de entradas (must-have)       |
-| Origen en el PRD | RF-10, RF-11 · RNF-6                               |
-| Depende de       | [E2-1](./us-registrar-entrada-del-dia.md)          |
-| Tickets          | Sin descomponer (ver [backlog](../backlog-mvp.md)) |
+| Campo            | Valor                                                                                                          |
+| ---------------- | -------------------------------------------------------------------------------------------------------------- |
+| ID               | `E2-2` (etiqueta provisional, **pendiente de ID**)                                                             |
+| Épica            | E2 · Registro diario                                                                                           |
+| Funcionalidad    | F1 · Registro diario de entradas (must-have)                                                                   |
+| Origen en el PRD | RF-10, RF-11 · RNF-6                                                                                           |
+| Depende de       | [E2-1](./us-registrar-entrada-del-dia.md) (se entregan juntas: E2-1 no se integra en `main` sin esta historia) |
+| Tickets          | Sin descomponer (ver [backlog](../backlog-mvp.md))                                                             |
 
 ## Historia
 
