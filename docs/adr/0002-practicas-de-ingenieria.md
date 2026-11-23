@@ -29,8 +29,8 @@ El dominio tiene reglas de negocio no triviales con test propio en el PRD (fusi�
 └─────────────────────────────────────────────┘
 ```
 
-- **Dominio**: clases/funciones TypeScript planas (sin decoradores de Nest ni de Prisma) con las entidades (Entrada, Tarea, Objetivo) y las reglas de negocio de las RF (fusión, protección por fecha, recálculo). Define **puertos** (interfaces) para lo que necesita de fuera, por ejemplo `TareaRepositorio`.
-- **Aplicación**: casos de uso (p. ej. `RegistrarEntradaDelDia`, `GenerarInformeDelPeriodo`) que orquestan el dominio y los puertos. Sin SQL ni HTTP.
+- **Dominio**: clases/funciones TypeScript planas (sin decoradores de Nest ni de Prisma) con las entidades (`Entry`, `Task`, `Objective`: entrada, tarea y objetivo) y las reglas de negocio de las RF (fusión, protección por fecha, recálculo). Define **puertos** (interfaces) para lo que necesita de fuera, por ejemplo `TaskRepository`.
+- **Aplicación**: casos de uso (p. ej. `SaveDailyEntry`, `GeneratePeriodReport`) que orquestan el dominio y los puertos. Sin SQL ni HTTP.
 - **Infraestructura**: implementa los puertos del dominio con Prisma/PostgreSQL y la sesión con `connect-pg-simple`. Es la única capa que conoce el esquema de base de datos.
 - **Interfaz**: controladores, DTOs, guards y pipes de NestJS. Traduce HTTP a casos de uso y de vuelta; no contiene reglas de negocio.
 - La inyección de dependencias de NestJS conecta las capas: los casos de uso declaran el puerto (interfaz del dominio) y el módulo de infraestructura provee la implementación concreta vía _token_ de DI. El dominio y la aplicación no importan nada de `@nestjs/*` ni de `@prisma/client`.
@@ -40,18 +40,18 @@ El dominio tiene reglas de negocio no triviales con test propio en el PRD (fusi�
 
 **OWASP Top 10 (2021) por defecto**, leído para este producto:
 
-| Categoría                                      | Cómo se cubre aquí                                                                                                                                                                                        |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A01 Broken Access Control                      | RF-2/RF-3: toda operación exige sesión y se filtra por usuaria autenticada a nivel de caso de uso, no solo en el controller — un test cubre cada operación de lectura y escritura (ya exigido por el PRD) |
-| A02 Cryptographic Failures                     | Contraseñas de las credenciales semilla con hash (bcrypt/argon2), nunca en texto plano; secretos solo en variables de entorno, nunca en el repositorio (ya en el alcance)                                 |
-| A03 Injection                                  | Prisma parametriza las consultas; ninguna concatenación de SQL crudo. Si hace falta `$queryRaw` (p. ej. para la secuencia atómica de IDs), siempre con parámetros, nunca con interpolación de strings     |
-| A04 Insecure Design                            | La caducidad de sesión por inactividad (RF-1) y el bloqueo de eliminación con referencias (RF-25, RF-30) son reglas de dominio con test, no parches posteriores                                           |
-| A05 Security Misconfiguration                  | Imágenes Docker con usuario no root y base mínima; sin endpoints de depuración ni stack traces expuestos en producción; `CORS` restringido al origen del frontend                                         |
-| A06 Vulnerable and Outdated Components         | `pnpm audit` (o equivalente) en el pipeline de GitHub Actions antes de construir las imágenes                                                                                                             |
-| A07 Identification and Authentication Failures | Sin registro público ni recuperación de contraseña (ya fuera de alcance); regenerar el identificador de sesión al iniciar sesión; límite de intentos razonable en el login                                |
-| A08 Software and Data Integrity Failures       | `pnpm-lock.yaml` fija versiones; las imágenes Docker se construyen desde el pipeline de CI, no se publican a mano                                                                                         |
-| A09 Security Logging and Monitoring Failures   | Deliberadamente ligero en el MVP (una sola usuaria, sin operación 24/7): se registran los fallos de autenticación, sin más infraestructura de observabilidad                                              |
-| A10 Server-Side Request Forgery                | No aplica: las evidencias de una tarea son texto o enlaces que se muestran como enlace pulsable, nunca se obtienen (`fetch`) desde el servidor con una URL que escriba la usuaria                         |
+| Categoría                                      | Cómo se cubre aquí                                                                                                                                                                                                   |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A01 Broken Access Control                      | RF-2/RF-3: toda operación exige sesión y se filtra por usuaria autenticada a nivel de caso de uso, no solo en el controller — un test cubre cada operación de lectura y escritura (ya exigido por el PRD)            |
+| A02 Cryptographic Failures                     | Contraseñas de las credenciales semilla con hash (bcrypt/argon2), nunca en texto plano; secretos solo en variables de entorno, nunca en el repositorio (ya en el alcance)                                            |
+| A03 Injection                                  | Prisma parametriza las consultas; ninguna concatenación de SQL crudo. Si hace falta `$queryRaw` (p. ej. para la secuencia atómica de IDs), siempre con parámetros, nunca con interpolación de strings                |
+| A04 Insecure Design                            | La caducidad de sesión por inactividad (RF-1) y el bloqueo de eliminación con referencias (RF-25, RF-30) son reglas de dominio con test, no parches posteriores                                                      |
+| A05 Security Misconfiguration                  | Imágenes Docker con usuario no root y base mínima; sin endpoints de depuración ni stack traces expuestos en producción; sin `CORS`: la SPA y la API comparten origen (`/` y `/api`, decisión D-1 de la arquitectura) |
+| A06 Vulnerable and Outdated Components         | `pnpm audit` (o equivalente) en el pipeline de GitHub Actions antes de construir las imágenes                                                                                                                        |
+| A07 Identification and Authentication Failures | Sin registro público ni recuperación de contraseña (ya fuera de alcance); regenerar el identificador de sesión al iniciar sesión; límite de intentos razonable en el login                                           |
+| A08 Software and Data Integrity Failures       | `pnpm-lock.yaml` fija versiones; las imágenes Docker se construyen desde el pipeline de CI, no se publican a mano                                                                                                    |
+| A09 Security Logging and Monitoring Failures   | Deliberadamente ligero en el MVP (una sola usuaria, sin operación 24/7): se registran los fallos de autenticación, sin más infraestructura de observabilidad                                                         |
+| A10 Server-Side Request Forgery                | No aplica: las evidencias de una tarea son texto o enlaces que se muestran como enlace pulsable, nunca se obtienen (`fetch`) desde el servidor con una URL que escriba la usuaria                                    |
 
 ## Alternativas consideradas
 

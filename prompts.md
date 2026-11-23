@@ -108,7 +108,7 @@ docs/arquitectura.md
 
 ### 6. Tickets de Trabajo
 
-**Prompt 1:**
+**Prompt 1:** /backlog crea los tickets de trabajo (backend, frontend, BD)
 
 **Prompt 2:**
 

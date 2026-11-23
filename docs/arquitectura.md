@@ -203,7 +203,7 @@ El bloqueo de fila serializa dos creaciones simultáneas; como el contador nunca
 
 **`TaskStateProjector`** (RF-12, RF-14, RF-23, RF-24) — el corazón de las reglas de integridad. En lugar de aplicar cambios "por orden de guardado", **proyecta** el estado de la tarea a partir de su historial de elementos ordenado por fecha de entrada:
 
-- Cada `EntryItem` guarda el estado elegido y, para los datos de detalle (objetivo, competencias, resultado, evidencias, logro), el valor del elemento y si ese guardado **lo cambió** (`changedFields`), calculado al guardar comparándolo con el valor que tenía la tarea (RF-12, «un dato cuenta como cambiado si difería»).
+- Cada `EntryItem` guarda el estado elegido y, para los datos de detalle (objetivo, competencias, resultado, evidencias, logro), solo si ese guardado **lo cambió** (`changedFields`), sin guardar el valor (decisión DM-1 de [modelo-de-datos.md](./modelo-de-datos.md)); el valor vigente vive solo en la tarea. La marca se calcula al guardar comparándolo con el valor que tenía la tarea (RF-12, «un dato cuenta como cambiado si difería»).
 - **Estado y fecha de finalización**: los fija el elemento de la entrada más reciente que menciona la tarea; si es `Completada`, la fecha de finalización es la de esa entrada; si no, se borra. Si no queda ningún elemento, se conservan los valores actuales (RF-14).
 - **Cada dato de detalle**: el valor de un elemento se aplica solo si ninguna entrada con fecha posterior tiene ese dato en `changedFields`.
 - **Cambios desde Tareas** (RF-23): no crean elementos; el caso de uso `UpdateTask` fija la fecha de finalización a la última actividad o a "hoy" y el proyector no se vuelve a ejecutar sobre ese cambio hasta la siguiente operación del Diario.
@@ -301,20 +301,20 @@ El PRD fija que "hoy" es la **fecha local del navegador** (RNF-4, supuesto 4.3.3
 
 Recursos principales (la especificación completa está en [api/openapi.yaml](./api/openapi.yaml)). Todo bajo `/api`, en inglés, JSON, fechas como `AAAA-MM-DD`.
 
-| Método y ruta                                             | Caso de uso                           | Notas                                                           |
-| --------------------------------------------------------- | ------------------------------------- | --------------------------------------------------------------- |
-| `POST /auth/login` · `POST /auth/logout` · `GET /auth/me` | `Login` · `Logout` · `GetCurrentUser` | `me` permite a la SPA saber si hay sesión al arrancar           |
-| `GET /summary`                                            | `GetSummary`                          | Entradas, tareas, logros (RF-4)                                 |
-| `GET /entries`                                            | `ListEntries`                         | Orden descendente; la agrupación por mes es de interfaz (RF-16) |
-| `PUT /entries/{date}`                                     | `SaveDailyEntry`                      | Crea o **fusiona** en la fecha (RF-10); idempotente por fecha   |
-| `PATCH /entries/{date}`                                   | `UpdateEntry`                         | Reemplaza los elementos; la fecha no cambia (RF-14)             |
-| `DELETE /entries/{date}`                                  | `DeleteEntry`                         | Recalcula las tareas afectadas (RF-14)                          |
-| `GET /tasks` · `GET /tasks/{code}/timeline`               | `ListTasks` · `GetTaskTimeline`       | Orden de RF-20 calculado en el servidor; `?q=&status=…` para S2 |
-| `PATCH /tasks/{code}` · `DELETE /tasks/{code}`            | `UpdateTask` · `DeleteTask`           | `409` si la tarea tiene entradas (RF-25)                        |
-| `GET/POST /objectives` · `PATCH/DELETE /objectives/{id}`  | CRUD de objetivos                     | Contadores en la respuesta (RF-29); `409` con tareas (RF-30)    |
-| `POST /objectives/{id}/archive` · `/restore`              | `Archive/RestoreObjective`            | RF-28                                                           |
-| `GET /skills?q=`                                          | `SuggestSkills`                       | RF-13                                                           |
-| `GET /reports?from=&to=`                                  | `GeneratePeriodReport`                | Devuelve modelo y Markdown (RF-33…RF-39)                        |
+| Método y ruta                                             | Caso de uso                           | Notas                                                                                                                                       |
+| --------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /auth/login` · `POST /auth/logout` · `GET /auth/me` | `Login` · `Logout` · `GetCurrentUser` | `me` permite a la SPA saber si hay sesión al arrancar                                                                                       |
+| `GET /summary`                                            | `GetSummary`                          | Entradas, tareas, logros (RF-4)                                                                                                             |
+| `GET /entries`                                            | `ListEntries`                         | Orden descendente; la agrupación por mes es de interfaz (RF-16)                                                                             |
+| `PUT /entries/{date}`                                     | `SaveDailyEntry`                      | Crea o **fusiona** en la fecha (RF-10); nunca crea una segunda entrada, pero no es idempotente: repetir la petición vuelve a añadir la nota |
+| `PATCH /entries/{date}`                                   | `UpdateEntry`                         | Reemplaza los elementos; la fecha no cambia (RF-14)                                                                                         |
+| `DELETE /entries/{date}`                                  | `DeleteEntry`                         | Recalcula las tareas afectadas (RF-14)                                                                                                      |
+| `GET /tasks` · `GET /tasks/{code}/timeline`               | `ListTasks` · `GetTaskTimeline`       | Orden de RF-20 calculado en el servidor; `?q=&status=…` para S2                                                                             |
+| `PATCH /tasks/{code}` · `DELETE /tasks/{code}`            | `UpdateTask` · `DeleteTask`           | `409` si la tarea tiene entradas (RF-25)                                                                                                    |
+| `GET/POST /objectives` · `PATCH/DELETE /objectives/{id}`  | CRUD de objetivos                     | Contadores en la respuesta (RF-29); `409` con tareas (RF-30)                                                                                |
+| `POST /objectives/{id}/archive` · `/restore`              | `Archive/RestoreObjective`            | RF-28                                                                                                                                       |
+| `GET /skills?q=`                                          | `SuggestSkills`                       | RF-13                                                                                                                                       |
+| `GET /reports?from=&to=`                                  | `GeneratePeriodReport`                | Devuelve modelo y Markdown (RF-33…RF-39)                                                                                                    |
 
 El identificador público de una tarea es su código (`T-003`); internamente cada tabla usa una clave sustituta y la unicidad del código es por usuaria.
 
@@ -334,10 +334,10 @@ erDiagram
 ```
 
 - `entry`: `UNIQUE (user_id, entry_date)` — una entrada por fecha (RF-10).
-- `entry_item`: `UNIQUE (entry_id, task_id)` — una tarea por entrada (RF-11); guarda posición, nota, estado y los valores/`changedFields` de RF-12.
+- `entry_item`: `UNIQUE (entry_id, task_id)` — una tarea por entrada (RF-11); guarda posición, nota, estado y las marcas `changedFields` de RF-12, sin los valores (DM-1).
 - `task`: `UNIQUE (user_id, number)` (RF-15); `CHECK ((status = 'COMPLETED') = (completed_on IS NOT NULL))` (RF-24) como red de seguridad de la regla de dominio.
 - Borrado de tarea u objetivo con `ON DELETE RESTRICT` además de la comprobación del caso de uso (RF-25, RF-30), para que la regla se cumpla "por cualquier camino" (RNF-6).
-- `skill`: `UNIQUE (user_id, lower(name))` — normalización sin distinguir mayúsculas (RF-13). En el esquema físico se implementa con una columna `name_key` calculada por el dominio (decisión DM-3 de [modelo-de-datos.md](./modelo-de-datos.md)).
+- `skill`: `UNIQUE (user_id, name_key)` — normalización sin distinguir mayúsculas (RF-13), con la columna `name_key` calculada por el dominio (decisión DM-3 de [modelo-de-datos.md](./modelo-de-datos.md)).
 - Índices por `(user_id, entry_date)` y `(task_id)` en `entry_item`, suficientes para la escala de RNF-3.
 - El _seed_ (`prisma/seed.ts`) es **idempotente** (_upsert_ por claves naturales): permite regenerar los datos si se pierde el volumen en Kubernetes (ADR-0001).
 
@@ -514,7 +514,7 @@ Todo se escribe siguiendo TDD (`docs/base-standards.md`): primero el test con el
 | RF-7, RF-8, RF-9          | `SaveDailyEntry` + `X-Client-Date`                 | `EntryEditor`, selectores                 | —                                                            |
 | RF-10, RF-11              | `EntryMerger`                                      | —                                         | `UNIQUE (user_id, entry_date)`, `UNIQUE (entry_id, task_id)` |
 | RF-12, RF-14, RF-24       | `TaskStateProjector`, entidad `Task`               | —                                         | `CHECK` estado ⇔ fecha de finalización                       |
-| RF-13                     | `SkillNormalizer`, `SuggestSkills`                 | `SkillsInput`                             | `UNIQUE (user_id, lower(name))`                              |
+| RF-13                     | `SkillNormalizer`, `SuggestSkills`                 | `SkillsInput`                             | `UNIQUE (user_id, name_key)` (DM-3)                          |
 | RF-15                     | `TaskCodeSequence`                                 | —                                         | `UNIQUE (user_id, number)`, contador por usuaria             |
 | RF-16…RF-19               | `ListEntries`                                      | `EntryHistory`                            | —                                                            |
 | RF-20…RF-23, RF-25, RF-26 | `ListTasks`, `UpdateTask`, `DeleteTask`            | `TaskList`, `TaskDetail`, `TaskFilters`   | `ON DELETE RESTRICT`                                         |
