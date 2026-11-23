@@ -78,7 +78,7 @@ docs/arquitectura.md
 
 ### 3. Modelo de Datos
 
-**Prompt 1:**
+**Prompt 1:** define y documenta el modelo de datos (técnico) — traduce docs/modelo/dominio.md al esquema real (tablas/colecciones) con la arquitectura ya definida en docs/arquitectura.md
 
 **Prompt 2:**
 

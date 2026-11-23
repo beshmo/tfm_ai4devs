@@ -166,11 +166,109 @@ Detalle completo (diagramas de contexto, capas, secuencia, datos, despliegue y C
 
 ### **3.1. Diagrama del modelo de datos:**
 
-> Recomendamos usar mermaid para el modelo de datos, y utilizar todos los parámetros que permite la sintaxis para dar el máximo detalle, por ejemplo las claves primarias y foráneas.
+PostgreSQL, gestionado con Prisma. Todas las tablas del diario llevan `user_id` (aislamiento por usuaria, RF-3); las tablas de relación usan claves foráneas compuestas `(x_id, user_id)` para que la base rechace mezclar registros de dos usuarias. Las fechas de calendario son `date`, sin hora (RNF-4).
+
+```mermaid
+erDiagram
+    app_user ||--|| task_code_sequence : "tiene"
+    app_user ||--o{ objective : "posee"
+    app_user ||--o{ task : "posee"
+    app_user ||--o{ skill : "posee"
+    app_user ||--o{ entry : "posee"
+    objective |o--o{ task : "agrupa"
+    task ||--o{ task_skill : "usa"
+    skill ||--o{ task_skill : "usada en"
+    entry ||--|{ entry_item : "contiene"
+    task ||--o{ entry_item : "mencionada en"
+
+    app_user {
+        uuid id PK
+        varchar(60) username UK "NOT NULL"
+        text password_hash "NOT NULL · Argon2id"
+        timestamptz created_at "NOT NULL"
+    }
+    task_code_sequence {
+        uuid user_id PK, FK "→ app_user.id"
+        integer last_number "NOT NULL · DEFAULT 0 · CHECK ≥ 0"
+    }
+    objective {
+        uuid id PK
+        uuid user_id FK "NOT NULL → app_user.id"
+        varchar(200) title "NOT NULL · CHECK no vacío"
+        varchar(2000) description "NULL"
+        varchar(2000) measurement "NULL · Cómo se mide"
+        timestamptz archived_at "NULL = activo"
+        timestamptz created_at "NOT NULL"
+        timestamptz updated_at "NOT NULL"
+    }
+    task {
+        uuid id PK
+        uuid user_id FK "NOT NULL → app_user.id"
+        integer number "NOT NULL · UK (user_id, number) · CHECK > 0"
+        varchar(200) title "NOT NULL · CHECK no vacío"
+        task_status status "NOT NULL · DEFAULT IN_PROGRESS"
+        date completed_on "NULL · CHECK ⇔ COMPLETED"
+        uuid objective_id FK "NULL → objective.id · RESTRICT"
+        varchar(4000) outcome "NULL · resultado o impacto"
+        varchar(4000) evidence "NULL · texto y enlaces"
+        boolean is_achievement "NOT NULL · DEFAULT false"
+        timestamptz created_at "NOT NULL"
+        timestamptz updated_at "NOT NULL"
+    }
+    skill {
+        uuid id PK
+        uuid user_id FK "NOT NULL → app_user.id"
+        varchar(60) name "NOT NULL · grafía guardada"
+        varchar(60) name_key "NOT NULL · UK (user_id, name_key)"
+        timestamptz created_at "NOT NULL"
+    }
+    task_skill {
+        uuid task_id PK, FK "(task_id, user_id) → task · CASCADE"
+        uuid skill_id PK, FK "(skill_id, user_id) → skill · RESTRICT"
+        uuid user_id "NOT NULL"
+        integer position "NOT NULL · CHECK ≥ 0"
+    }
+    entry {
+        uuid id PK
+        uuid user_id FK "NOT NULL → app_user.id"
+        date entry_date "NOT NULL · UK (user_id, entry_date)"
+        timestamptz created_at "NOT NULL"
+        timestamptz updated_at "NOT NULL"
+    }
+    entry_item {
+        uuid id PK
+        uuid entry_id FK "(entry_id, user_id) → entry · CASCADE"
+        uuid task_id FK "(task_id, user_id) → task · RESTRICT"
+        uuid user_id "NOT NULL"
+        integer position "NOT NULL · CHECK ≥ 0"
+        text note "NOT NULL · DEFAULT ''"
+        task_status status "NOT NULL"
+        boolean changed_objective "NOT NULL · DEFAULT false"
+        boolean changed_skills "NOT NULL · DEFAULT false"
+        boolean changed_outcome "NOT NULL · DEFAULT false"
+        boolean changed_evidence "NOT NULL · DEFAULT false"
+        boolean changed_achievement "NOT NULL · DEFAULT false"
+    }
+```
+
+Además existe la tabla `session` de `connect-pg-simple` (`sid` PK, `sess json`, `expire timestamp`), sin relaciones con las demás.
 
 ### **3.2. Descripción de entidades principales:**
 
-> Recuerda incluir el máximo detalle de cada entidad, como el nombre y tipo de cada atributo, descripción breve si procede, claves primarias y foráneas, relaciones y tipo de relación, restricciones (unique, not null…), etc.
+| Tabla                | Qué representa                                                                                                       | Restricciones clave                                                                                                                                                      |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `app_user`           | Cuenta de usuaria; solo las dos del _seed_, sin registro                                                             | `username` único; contraseña solo como hash Argon2id                                                                                                                     |
+| `task_code_sequence` | Último número de tarea asignado a cada usuaria                                                                       | Se incrementa con `UPDATE … RETURNING` en la misma transacción que crea la tarea; nunca baja, así que los ID borrados no se reutilizan (RF-15)                           |
+| `objective`          | Meta del periodo de evaluación: título, descripción y "Cómo se mide"                                                 | Título obligatorio, no único; `archived_at` marca el archivado sin perder las tareas (RF-28); no se borra si tiene tareas (`RESTRICT`, RF-30)                            |
+| `task`               | Trabajo seguido en el tiempo; su ID visible `T-003` se forma a partir de `number`                                    | `UNIQUE (user_id, number)` (RF-15); `CHECK` estado `COMPLETED` ⇔ `completed_on` no nulo (RF-24); no se borra si alguna entrada la menciona (`RESTRICT`, RF-25)           |
+| `skill`              | Competencia de la usuaria, con su grafía y una clave normalizada (recortada y en minúsculas)                         | `UNIQUE (user_id, name_key)`: "kubernetes" reutiliza "Kubernetes" (RF-13); se borra cuando ninguna tarea la usa                                                          |
+| `task_skill`         | Competencias que usa cada tarea, en el orden en que se introdujeron                                                  | Clave primaria `(task_id, skill_id)`: sin duplicados en una tarea                                                                                                        |
+| `entry`              | El diario de un día concreto                                                                                         | `UNIQUE (user_id, entry_date)`: una entrada por fecha; guardar en una fecha existente fusiona (RF-10)                                                                    |
+| `entry_item`         | Una tarea dentro de una entrada: nota, estado tras ese día y qué datos de la tarea cambió ese guardado (`changed_*`) | `UNIQUE (entry_id, task_id)` (RF-11); las marcas `changed_*` implementan la protección por fecha de RF-12: un dato solo se aplica si ninguna entrada posterior lo cambió |
+
+Lo derivable no se guarda: la última actividad y el número de entradas de cada tarea, los contadores de objetivo, el resumen de la cabecera y el informe se calculan en cada consulta (RNF-3: 300 entradas, 600 tareas).
+
+Detalle completo (columnas, tipos, `schema.prisma`, `CHECK` complementarios, consultas que sostienen cada regla, índices, _seed_ y decisiones DM-1 a DM-8) en [`docs/modelo-de-datos.md`](docs/modelo-de-datos.md).
 
 ---
 
