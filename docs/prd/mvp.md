@@ -363,7 +363,7 @@ _Comprobación:_ P-4.
 
 **R-2 — Criterio de recorte.** De 3 a 5 must-have (aquí, 5: F1–F5) y como máximo 2 should-have (S1, S2). Cualquier petición nueva se valora indicando qué funcionalidad se aplaza o se recorta. Al tener las 5 must-have en el límite superior, no hay margen para añadir otra sin quitar una.
 
-**R-3 — Stack sin elegir; herramientas de repositorio ya configuradas.** No hay stack tecnológico decidido. El repositorio ya tiene configurados pnpm como gestor de paquetes, ESLint, Prettier y ganchos de git con Husky. El trabajo se organiza con OpenSpec (propuestas de cambio antes de implementar). La elección del stack corresponde a la documentación técnica de la Entrega 1, no a este PRD.
+**R-3 — Stack elegido fuera del PRD; herramientas de repositorio ya configuradas.** El stack tecnológico está decidido en la documentación técnica de la Entrega 1 ([ADR-0001](../adr/0001-stack-tecnologico.md)), no en este PRD. El repositorio ya tiene configurados pnpm como gestor de paquetes, ESLint, Prettier y ganchos de git con Husky. El trabajo se organiza con OpenSpec (propuestas de cambio antes de implementar).
 
 **R-4 — No hay tests hoy y su coste forma parte del MVP.** El comando de tests existe pero no ejecuta nada. La suite (unitarios, integración y E2E), con un test por cada regla de integridad y por cada criterio de fidelidad del informe, se construye dentro del MVP siguiendo TDD.
 
