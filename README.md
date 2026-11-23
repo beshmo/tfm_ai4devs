@@ -274,7 +274,250 @@ Detalle completo (columnas, tipos, `schema.prisma`, `CHECK` complementarios, con
 
 ## 4. Especificación de la API
 
-> Si tu backend se comunica a través de API, describe los endpoints principales (máximo 3) en formato OpenAPI. Opcionalmente puedes añadir un ejemplo de petición y de respuesta para mayor claridad
+API REST en JSON bajo `/api`, en el mismo origen que la SPA. La especificación completa (21 operaciones: autenticación, resumen, entradas, tareas, objetivos, competencias, informe y _health_) está en [`docs/api/openapi.yaml`](docs/api/openapi.yaml) (OpenAPI 3.1). Es la fuente de verdad del contrato: los esquemas zod de `packages/shared` la implementan y los tests de contrato la comprueban.
+
+Convenciones comunes:
+
+- **Sesión**: cookie `sid` (`HttpOnly`, `SameSite=Strict`) que crea `POST /auth/login` y caduca a los 30 min de inactividad. Todo exige sesión salvo `login` y `health` (`401`). La usuaria sale solo de la sesión; un recurso de otra usuaria responde `404`, igual que uno inexistente (RF-3).
+- **Fechas** como `AAAA-MM-DD`, sin hora. **Identificadores públicos**: la fecha para la entrada, el código `T-003` para la tarea y el UUID para el objetivo.
+- **`X-Client-Date`**: la SPA envía su fecha local ("hoy", RNF-4) en cada escritura; el servidor la acepta a ±1 día de su fecha UTC.
+- **Errores**: `{ "code", "message", "details"? }` con un código estable (`VALIDATION_FAILED`, `NOT_FOUND`, `TASK_HAS_ENTRIES`, `ENTRY_DATE_IN_FUTURE`…). Cada escritura es una transacción: se aplica entera o nada (RNF-5).
+
+Los tres endpoints principales, que concentran las reglas centrales del producto (extracto de `docs/api/openapi.yaml`; los esquemas referenciados están definidos allí):
+
+```yaml
+paths:
+  /entries/{date}:
+    put:
+      operationId: saveDailyEntry
+      summary: Save the entry of a date (create or merge)
+      description: >
+        Creates the entry of `date` or merges the items into the existing one (RF-10).
+        `date` must not be after X-Client-Date (RF-7). The submitted items must not repeat
+        a task (RF-11). Status and each detail field present in an item are applied to the
+        task only if no later-dated entry mentions the task / changed that field (RF-12);
+        absent detail fields are left untouched.
+      parameters:
+        - {
+            name: date,
+            in: path,
+            required: true,
+            schema: { $ref: "#/components/schemas/CalendarDate" },
+          }
+        - {
+            name: X-Client-Date,
+            in: header,
+            required: true,
+            schema: { $ref: "#/components/schemas/CalendarDate" },
+          }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SaveEntryRequest" }
+      responses:
+        "200":
+          {
+            description: Saved (possibly merged) entry,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/Entry" } },
+              },
+          }
+        "400": { description: VALIDATION_FAILED or CLIENT_DATE_INVALID }
+        "401": { description: UNAUTHENTICATED }
+        "404": { description: Referenced task or objective not found }
+        "422": { description: ENTRY_DATE_IN_FUTURE or DUPLICATE_TASK_IN_ENTRY }
+
+  /tasks/{code}:
+    patch:
+      operationId: updateTask
+      summary: Edit a task inline
+      description: >
+        Partial update (RF-22). To COMPLETED, completedOn = last activity date, or
+        X-Client-Date if the task has no entries; leaving COMPLETED clears it (RF-23, RF-24).
+        Creates no entry item and never triggers the RF-12 protection.
+      parameters:
+        - {
+            name: code,
+            in: path,
+            required: true,
+            schema: { $ref: "#/components/schemas/TaskCode" },
+          }
+        - {
+            name: X-Client-Date,
+            in: header,
+            required: true,
+            schema: { $ref: "#/components/schemas/CalendarDate" },
+          }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateTaskRequest" }
+      responses:
+        "200":
+          {
+            description: Updated task,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/Task" } },
+              },
+          }
+        "400": { description: VALIDATION_FAILED or CLIENT_DATE_INVALID }
+        "401": { description: UNAUTHENTICATED }
+        "404": { description: Task or objective not found }
+
+  /reports:
+    get:
+      operationId: generatePeriodReport
+      summary: Period report and its Markdown
+      description: >
+        Report of the inclusive range [from, to] (RF-33…RF-36) with every list in its final
+        order, plus the Markdown export, byte-identical for the same data and period (RF-39).
+      parameters:
+        - {
+            name: from,
+            in: query,
+            required: true,
+            schema: { $ref: "#/components/schemas/CalendarDate" },
+          }
+        - {
+            name: to,
+            in: query,
+            required: true,
+            schema: { $ref: "#/components/schemas/CalendarDate" },
+          }
+      responses:
+        "200":
+          {
+            description: Report,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/Report" } },
+              },
+          }
+        "400": { description: Missing or invalid dates, or from > to }
+        "401": { description: UNAUTHENTICATED }
+```
+
+**Ejemplo 1 — guardar la entrada del 2026-11-19** con una tarea existente que se completa como logro y una tarea nueva con un objetivo nuevo:
+
+```http
+PUT /api/entries/2026-11-19
+Content-Type: application/json
+X-Client-Date: 2026-11-23
+Cookie: sid=…
+
+{
+  "items": [
+    {
+      "task": { "code": "T-004" },
+      "note": "Postmortem redactado y compartido con el equipo.",
+      "status": "COMPLETED",
+      "isAchievement": true,
+      "outcome": "Reducción del 25% de las conexiones simultáneas en las instancias tomcat TOMCAT-1",
+      "evidence": "https://wiki.interna/postmortems/TOMCAT-1"
+    },
+    {
+      "task": { "title": "Revisar la política de copias de seguridad" },
+      "status": "IN_PROGRESS",
+      "objective": { "title": "Fiabilidad de la plataforma" },
+      "skills": ["kubernetes", "Copias de seguridad"]
+    }
+  ]
+}
+```
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "date": "2026-11-19",
+  "items": [
+    {
+      "task": {
+        "code": "T-004", "title": "Incidente instancia tomcat TOMCAT-1",
+        "status": "COMPLETED", "isAchievement": true,
+        "objective": { "id": "3f1c2a9e-5b7d-4c1e-9a2f-8d6e4b0c7a11", "title": "Mantenimiento del servicio de portales del proyecto PROYECTO-1", "archived": false },
+        "skills": ["Resolución de incidencias"]
+      },
+      "note": "Postmortem redactado y compartido con el equipo.",
+      "status": "COMPLETED"
+    },
+    {
+      "task": {
+        "code": "T-010", "title": "Revisar la política de copias de seguridad",
+        "status": "IN_PROGRESS", "isAchievement": false,
+        "objective": { "id": "9b0e7d3c-2a41-4f6e-8c5d-1e2f3a4b5c6d", "title": "Fiabilidad de la plataforma", "archived": false },
+        "skills": ["Kubernetes", "Copias de seguridad"]
+      },
+      "note": "",
+      "status": "IN_PROGRESS"
+    }
+  ]
+}
+```
+
+La tarea nueva recibe el siguiente código de la usuaria (`T-010`, RF-15) y `"kubernetes"` se guarda con la grafía ya existente, `"Kubernetes"` (RF-13). Si la fecha ya tenía entrada, los elementos se fusionan en ella (RF-10).
+
+**Ejemplo 2 — completar una tarea desde Tareas:**
+
+```http
+PATCH /api/tasks/T-008
+Content-Type: application/json
+X-Client-Date: 2026-11-23
+
+{ "status": "COMPLETED" }
+```
+
+```http
+HTTP/1.1 200 OK
+
+{ "code": "T-008", "title": "Desarrollo de evolutivo EVOLUTIVO-1", "status": "COMPLETED",
+  "completedOn": "2026-10-27", "isAchievement": false, "objective": { "id": "…", "title": "Desarrollo evolutivo del proyecto PROYECTO-1", "archived": false },
+  "skills": ["Diseño y planificación"], "outcome": null, "evidence": null,
+  "lastActivityOn": "2026-10-27", "entryCount": 1 }
+```
+
+`completedOn` toma la fecha de la última actividad (2026-10-27), no la de hoy; solo si la tarea no tuviera entradas sería `X-Client-Date` (RF-23).
+
+**Ejemplo 3 — informe del periodo** (datos del [informe de referencia](docs/modelo/informe.md); listas recortadas):
+
+```http
+GET /api/reports?from=2026-10-01&to=2026-11-21
+```
+
+```http
+HTTP/1.1 200 OK
+
+{
+  "period": { "from": "2026-10-01", "to": "2026-11-21" },
+  "summary": { "entries": 8, "tasksWorked": 5, "tasksCompleted": 4, "achievements": 1 },
+  "achievements": [
+    { "code": "T-004", "title": "Incidente instancia tomcat TOMCAT-1",
+      "objective": { "id": "3f1c2a9e-…", "title": "Mantenimiento del servicio de portales del proyecto PROYECTO-1", "archived": false },
+      "completedOn": "2026-11-19", "interval": { "from": "2026-11-16", "to": "2026-11-19" }, "entryCount": 2,
+      "outcome": "Reducción del 25% de las conexiones simultáneas en las instancias tomcat TOMCAT-1",
+      "skills": ["Resolución de incidencias"], "evidence": "https://wiki.interna/postmortems/TOMCAT-1" }
+  ],
+  "strengths": [
+    { "skill": "Diseño y planificación", "taskCount": 3, "entryCount": 5, "taskCodes": ["T-005", "T-008", "T-009"] }
+  ],
+  "byObjective": [
+    { "objective": { "id": "…", "title": "Configuración arnés IA equipo PROYECTO-1", "measurement": "Incremento del número de tareas resueltas…", "archived": false },
+      "tasks": [ { "code": "T-001", "title": "Onboarding proyecto PROYECTO-1", "status": "COMPLETED", "isAchievement": false,
+                   "interval": { "from": "2026-10-19", "to": "2026-10-22" }, "entryCount": 2, "outcome": null } ] }
+  ],
+  "markdown": "# Informe de tareas, logros y fortalezas\n\nPeriodo: 2026-10-01 a 2026-11-21\n\n## Resumen\n…"
+}
+```
+
+El cliente pinta las secciones a partir del modelo, genera el PDF desde él (RF-40) y descarga `markdown` tal cual como `informe-diario-2026-10-01_2026-11-21.md` (RF-38).
 
 ---
 

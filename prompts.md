@@ -88,9 +88,9 @@ docs/arquitectura.md
 
 ### 4. Especificación de la API
 
-**Prompt 1:**
+**Prompt 1:** define y documenta la especificación de la API — necesita arquitectura y modelo de datos para definir endpoints y payloads coherentes
 
-**Prompt 2:**
+**Prompt 2:** ! pnpm dlx --package=@redocly/cli redocly lint docs/api/openapi.yaml
 
 **Prompt 3:**
 
