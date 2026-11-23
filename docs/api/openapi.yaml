@@ -373,9 +373,8 @@ paths:
           in: query
           description: Objective UUID, or `none` for tasks without objective.
           schema:
-            oneOf:
-              - { type: string, format: uuid }
-              - { type: string, const: none }
+            type: string
+            pattern: "^(none|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
         - name: skill
           in: query
           description: Skill name, compared case-insensitively.
@@ -829,8 +828,7 @@ components:
           example:
             {
               code: TASK_CODE_CONFLICT,
-              message: Could not allocate a task code,
-              retry,
+              message: "Could not allocate a task code; retry",
             }
     PayloadTooLarge:
       description: Body over 100 kB
